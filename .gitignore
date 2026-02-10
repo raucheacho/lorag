@@ -52,3 +52,6 @@ logs/
 
 # Node modules
 node_modules/
+
+#dossier test
+test_lorag/
