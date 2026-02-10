@@ -1,0 +1,50 @@
+# Binaries
+bin/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Data
+data/
+*.db
+*.bolt
+
+# Git
+.git/
+.gitignore
+
+# Go
+vendor/
+*.test
+*.out
+coverage.*
+
+# Node
+node_modules/
+web/node_modules/
+web/dist/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs
+README.md
+docs/
+
+# CI/CD
+.github/
+.goreleaser.yaml
+
+# Misc
+*.md
+LICENSE
