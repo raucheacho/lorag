@@ -1,5 +1,7 @@
 # Binaries
 bin/
+lorag
+lorag.log
 dist/
 *.exe
 *.dll
@@ -23,8 +25,8 @@ coverage.*
 
 # Node
 node_modules/
-web/node_modules/
-web/dist/
+ui/node_modules/
+ui/dist/
 
 # IDE
 .idea/

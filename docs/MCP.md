@@ -1,385 +1,86 @@
-# MCP (Model Context Protocol) Documentation
+# MCP (Model Context Protocol)
 
-## Overview
-
-Lorag implements the Model Context Protocol (MCP) to allow AI agents to interact with the local RAG engine. MCP is a standard protocol for AI agents to discover and use tools.
+Lorag serves MCP over the Streamable HTTP transport, so agents can search the indexed local files and add new ones.
 
 ## Endpoint
 
 ```
-POST /mcp
-Content-Type: application/json
+POST   http://localhost:8080/mcp     JSON-RPC 2.0 request, JSON response
+DELETE http://localhost:8080/mcp     ends the session named by Mcp-Session-Id
 ```
 
-## Protocol Format
+- Protocol revisions: `2025-06-18`, `2025-03-26`, `2024-11-05`. The server answers `initialize` with the client's revision when it supports it, the newest one otherwise.
+- `initialize` returns an `Mcp-Session-Id` header. Clients send it back on each request; Lorag uses it only to attribute searches to the client (`clientInfo.name`) in the activity log.
+- Notifications (no `id`, e.g. `notifications/initialized`) get `202 Accepted` with no body.
+- `GET` returns `405`: the server never pushes messages.
+- Requests carrying an `Origin` header other than `localhost`, `127.0.0.1` or `::1` are refused (`403`), so a web page cannot drive the server from the browser.
 
-All MCP requests and responses use JSON-RPC 2.0 format.
+Methods: `initialize`, `ping`, `tools/list`, `tools/call`.
 
-### Request Format
+## Connecting a client
 
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "method.name",
-  "params": { ... },
-  "id": 1
-}
-```
-
-### Response Format
-
-```json
-{
-  "jsonrpc": "2.0",
-  "result": { ... },
-  "id": 1
-}
-```
-
-### Error Format
-
-```json
-{
-  "jsonrpc": "2.0",
-  "error": {
-    "code": -32600,
-    "message": "Invalid Request"
-  },
-  "id": 1
-}
-```
-
-## Methods
-
-### Initialize
-
-Get server information and capabilities.
-
-**Request:**
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "initialize",
-  "id": 1
-}
-```
-
-**Response:**
-```json
-{
-  "jsonrpc": "2.0",
-  "result": {
-    "name": "lorag",
-    "version": "0.1.0",
-    "capabilities": ["tools", "resources", "search"],
-    "tools": [
-      {
-        "name": "search",
-        "description": "Search through indexed documents",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "query": {"type": "string"},
-            "top_k": {"type": "integer", "default": 5}
-          },
-          "required": ["query"]
-        }
-      }
-    ]
-  },
-  "id": 1
-}
-```
-
-### Tools List
-
-List all available tools.
-
-**Request:**
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "tools/list",
-  "id": 1
-}
-```
-
-**Response:**
-```json
-{
-  "jsonrpc": "2.0",
-  "result": {
-    "tools": [
-      {
-        "name": "search",
-        "description": "Search through indexed documents using semantic search",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "query": {"type": "string"},
-            "top_k": {"type": "integer", "default": 5}
-          },
-          "required": ["query"]
-        }
-      },
-      {
-        "name": "index_file",
-        "description": "Index a file or directory",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "path": {"type": "string"},
-            "recursive": {"type": "boolean", "default": false}
-          },
-          "required": ["path"]
-        }
-      },
-      {
-        "name": "get_stats",
-        "description": "Get indexing statistics",
-        "inputSchema": {
-          "type": "object",
-          "properties": {}
-        }
-      }
-    ]
-  },
-  "id": 1
-}
-```
-
-### Tools Call
-
-Call a tool.
-
-**Request:**
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "tools/call",
-  "params": {
-    "name": "search",
-    "arguments": {
-      "query": "machine learning",
-      "top_k": 5
-    }
-  },
-  "id": 1
-}
-```
-
-**Response:**
-```json
-{
-  "jsonrpc": "2.0",
-  "result": {
-    "content": [
-      {
-        "type": "text",
-        "text": "Found 5 results for: machine learning\n\n[1] ml-guide.pdf (score: 0.892)\nMachine learning is a subset of artificial intelligence...\n\n[2] ai-intro.pdf (score: 0.845)\n..."
-      }
-    ]
-  },
-  "id": 1
-}
-```
-
-#### Available Tools
-
-##### search
-
-Search through indexed documents using semantic search.
-
-**Parameters:**
-- `query` (string, required): The search query
-- `top_k` (integer, optional): Number of results to return (default: 5)
-
-**Returns:** Text content with search results.
-
-##### index_file
-
-Index a file or directory.
-
-**Parameters:**
-- `path` (string, required): Path to file or directory
-- `recursive` (boolean, optional): Index recursively for directories (default: false)
-
-**Returns:** Text content with indexing results.
-
-##### get_stats
-
-Get indexing statistics.
-
-**Parameters:** None
-
-**Returns:** Text content with system statistics.
-
-### Resources Search
-
-Search for resources.
-
-**Request:**
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "resources/search",
-  "params": {
-    "query": "machine learning",
-    "limit": 10
-  },
-  "id": 1
-}
-```
-
-**Response:**
-```json
-{
-  "jsonrpc": "2.0",
-  "result": {
-    "resources": [
-      {
-        "uri": "file:///docs/ml-guide.pdf#chunk=chunk_123",
-        "name": "ml-guide.pdf",
-        "description": "Chunk 5 from ml-guide.pdf (score: 0.892)",
-        "mimeType": "text/plain"
-      }
-    ]
-  },
-  "id": 1
-}
-```
-
-### Resources Get
-
-Get a specific resource.
-
-**Request:**
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "resources/get",
-  "params": {
-    "uri": "file:///docs/ml-guide.pdf#chunk=chunk_123"
-  },
-  "id": 1
-}
-```
-
-**Response:**
-```json
-{
-  "jsonrpc": "2.0",
-  "result": {
-    "contents": [
-      {
-        "uri": "file:///docs/ml-guide.pdf#chunk=chunk_123",
-        "mimeType": "text/plain",
-        "text": "Machine learning is a subset of artificial intelligence..."
-      }
-    ]
-  },
-  "id": 1
-}
-```
-
-## Example Usage
-
-### Python Client
-
-```python
-import requests
-
-MCP_URL = "http://localhost:8080/mcp"
-
-def mcp_request(method, params=None, request_id=1):
-    payload = {
-        "jsonrpc": "2.0",
-        "method": method,
-        "id": request_id
-    }
-    if params:
-        payload["params"] = params
-    
-    response = requests.post(MCP_URL, json=payload)
-    return response.json()
-
-# Initialize
-result = mcp_request("initialize")
-print(result["result"]["name"])  # "lorag"
-
-# Search
-result = mcp_request("tools/call", {
-    "name": "search",
-    "arguments": {"query": "machine learning", "top_k": 5}
-})
-print(result["result"]["content"][0]["text"])
-
-# Get stats
-result = mcp_request("tools/call", {
-    "name": "get_stats",
-    "arguments": {}
-})
-print(result["result"]["content"][0]["text"])
-```
-
-### JavaScript Client
-
-```javascript
-async function mcpRequest(method, params, id = 1) {
-  const response = await fetch('http://localhost:8080/mcp', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      method,
-      params,
-      id
-    })
-  });
-  return response.json();
-}
-
-// Search
-const result = await mcpRequest('tools/call', {
-  name: 'search',
-  arguments: { query: 'machine learning', top_k: 5 }
-});
-console.log(result.result.content[0].text);
-```
-
-## Error Codes
-
-- `-32700`: Parse error
-- `-32600`: Invalid Request
-- `-32601`: Method not found
-- `-32602`: Invalid params
-- `-32603`: Internal error
-- `-32000`: Server error
-
-## Integration Examples
-
-### Claude Desktop
-
-To use Lorag with Claude Desktop, add the following to your `claude_desktop_config.json`:
+Clients that support HTTP servers take the URL directly:
 
 ```json
 {
   "mcpServers": {
-    "lorag": {
-      "command": "http://localhost:8080/mcp"
-    }
+    "lorag": { "type": "http", "url": "http://localhost:8080/mcp" }
   }
 }
 ```
 
-### VSCode
+Clients limited to stdio servers can go through a bridge such as `npx mcp-remote http://localhost:8080/mcp`.
 
-For VSCode extensions, use the MCP endpoint to provide context-aware suggestions:
+## Tools
 
-```typescript
-const mcpClient = new MCPClient('http://localhost:8080/mcp');
-const results = await mcpClient.call('search', {
-  query: 'current file context',
-  top_k: 3
-});
+### `search`
+
+Hybrid search by default: the query is embedded and matched against the chunk vectors, and its words against the chunk text (BM25); both rankings are fused with reciprocal rank fusion inside VectixDB.
+
+| Argument | Type | Default | |
+| --- | --- | --- | --- |
+| `query` | string | required | natural language or exact terms |
+| `top_k` | integer | 5 | 1 to 50 |
+| `mode` | string | `hybrid` | `hybrid`, `vector` or `keyword` |
+| `extension` | string | | only files with this extension (`md` or `.md`) |
+| `path` | string | | only the file with this exact path |
+| `context` | integer | 0 | neighbor chunks added on each side, 0 to 3 |
+
+`keyword` mode finds exact identifiers (error codes, function names) that embeddings blur. If the embedding service is down, `hybrid` falls back to `keyword` and says so in a note.
+
+The result is text, one block per chunk:
+
+```
+Found 2 results for: registry secret
+
+[1] /home/me/notes/deploy.md (chunk 3, score 0.984, document_id 26c5…)
+Kubernetes deployment rollout fails with ImagePullBackOff when …
+```
+
+Hybrid scores are normalized to [0, 1]: 1 means ranked first by both routes. The framing text follows the template chosen in the settings (`default`, `concise`, `detailed`, `academic`, `bullet`).
+
+### `get_document`
+
+Full indexed text of a document, chunk by chunk. Arguments: `document_id` (from a search result) or `path`.
+
+### `index_file`
+
+Indexes a file, or every supported file of a directory. Arguments: `path`, `recursive` (default `false`). An unchanged file is skipped; a changed file has its chunks replaced in one atomic write, so a search never sees half of it.
+
+### `get_stats`
+
+Document and chunk counts and the state of the search index, as JSON.
+
+## Errors
+
+- A tool that fails (missing argument, unreadable file, search error) returns a normal result with `"isError": true` and the message as text, so the agent can read it and retry.
+- Protocol errors use JSON-RPC codes: `-32700` parse error, `-32600` invalid request, `-32601` unknown method, `-32602` invalid params or unknown tool.
+
+## Example
+
+```sh
+curl -s localhost:8080/mcp -H 'Content-Type: application/json' -d '{
+  "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+  "params": {"name": "search", "arguments": {"query": "ImagePullBackOff", "mode": "keyword"}}
+}'
 ```

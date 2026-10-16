@@ -1,491 +1,445 @@
+// Package mcp serves the Model Context Protocol over Streamable HTTP
+// (POST /mcp, JSON responses), so agents can search and feed the index.
 package mcp
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
+	"sync"
 
+	"github.com/lorag/lorag/internal/activity"
 	"github.com/lorag/lorag/internal/core/indexer"
 	"github.com/lorag/lorag/internal/core/query"
 	"github.com/lorag/lorag/internal/core/store"
 )
 
-// Server implements MCP (Model Context Protocol) server
+// Protocol revisions this server speaks, newest first.
+var protocolVersions = []string{"2025-06-18", "2025-03-26", "2024-11-05"}
+
+const maxSessions = 1024
+
+// Server implements the MCP tools on top of the indexer and the query engine.
 type Server struct {
-	store         *store.BoltStore
-	settingsStore *store.SettingsStore
-	indexer       *indexer.Indexer
-	query         *query.Engine
+	store    *store.BoltStore
+	settings *store.SettingsStore
+	indexer  *indexer.Indexer
+	query    *query.Engine
+	version  string
+
+	mu       sync.Mutex
+	sessions map[string]string // session id → client name
 }
 
-// NewServer creates a new MCP server
-func NewServer(
-	st *store.BoltStore,
-	settings *store.SettingsStore,
-	idx *indexer.Indexer,
-	qe *query.Engine,
-) *Server {
-	return &Server{
-		store:         st,
-		settingsStore: settings,
-		indexer:       idx,
-		query:         qe,
-	}
+// NewServer creates the MCP server.
+func NewServer(st *store.BoltStore, settings *store.SettingsStore, idx *indexer.Indexer, qe *query.Engine, version string) *Server {
+	return &Server{store: st, settings: settings, indexer: idx, query: qe, version: version, sessions: map[string]string{}}
 }
 
-// MCPRequest represents an MCP request
-type MCPRequest struct {
+type request struct {
 	JSONRPC string          `json:"jsonrpc"`
 	Method  string          `json:"method"`
 	Params  json.RawMessage `json:"params,omitempty"`
-	ID      interface{}     `json:"id,omitempty"`
+	ID      json.RawMessage `json:"id,omitempty"` // absent for notifications
 }
 
-// MCPResponse represents an MCP response
-type MCPResponse struct {
-	JSONRPC string      `json:"jsonrpc"`
-	Result  interface{} `json:"result,omitempty"`
-	Error   *MCPError   `json:"error,omitempty"`
-	ID      interface{} `json:"id,omitempty"`
+type response struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Result  any             `json:"result,omitempty"`
+	Error   *rpcError       `json:"error,omitempty"`
 }
 
-// MCPError represents an MCP error
-type MCPError struct {
+type rpcError struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
-	Data    interface{} `json:"data,omitempty"`
 }
 
-// MCPInfo contains server capabilities
-type MCPInfo struct {
-	Name        string            `json:"name"`
-	Version     string            `json:"version"`
-	Capabilities []string          `json:"capabilities"`
-	Tools       []MCPTool         `json:"tools,omitempty"`
-}
+const (
+	codeParse          = -32700
+	codeInvalidRequest = -32600
+	codeMethodNotFound = -32601
+	codeInvalidParams  = -32602
+)
 
-// MCPTool represents an available tool
-type MCPTool struct {
-	Name        string          `json:"name"`
-	Description string          `json:"description"`
-	InputSchema json.RawMessage `json:"inputSchema"`
-}
-
-// Handle handles MCP requests (both GET for SSE and POST for JSON-RPC)
+// Handle serves /mcp.
 func (s *Server) Handle(w http.ResponseWriter, r *http.Request) {
-	// Handle GET request for SSE (Streamable HTTP)
-	if r.Method == "GET" {
-		s.handleSSE(w, r)
+	if !allowedOrigin(r.Header.Get("Origin")) {
+		http.Error(w, "origin not allowed", http.StatusForbidden)
 		return
 	}
-	
-	// Handle POST request for JSON-RPC
-	if r.Method != "POST" {
+	switch r.Method {
+	case http.MethodPost:
+	case http.MethodDelete:
+		s.mu.Lock()
+		delete(s.sessions, r.Header.Get("Mcp-Session-Id"))
+		s.mu.Unlock()
+		w.WriteHeader(http.StatusNoContent)
+		return
+	default:
+		// No server-initiated stream: GET is not offered.
+		w.Header().Set("Allow", "POST, DELETE")
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	
-	var req MCPRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.respondError(w, nil, -32700, "Parse error")
+
+	body := http.MaxBytesReader(w, r.Body, 4<<20)
+	var req request
+	if err := json.NewDecoder(body).Decode(&req); err != nil {
+		writeJSON(w, response{JSONRPC: "2.0", ID: json.RawMessage("null"), Error: &rpcError{codeParse, "parse error"}})
 		return
 	}
-	
-	if req.JSONRPC != "2.0" {
-		s.respondError(w, req.ID, -32600, "Invalid Request: must be jsonrpc 2.0")
+	if len(req.ID) == 0 {
+		// Notification (initialized, cancelled…) or a response: nothing to return.
+		w.WriteHeader(http.StatusAccepted)
 		return
 	}
-	
-	var result interface{}
-	var mcpErr *MCPError
-	
+	if req.JSONRPC != "2.0" || req.Method == "" {
+		writeJSON(w, response{JSONRPC: "2.0", ID: req.ID, Error: &rpcError{codeInvalidRequest, "invalid request"}})
+		return
+	}
+
+	var result any
+	var rerr *rpcError
 	switch req.Method {
 	case "initialize":
-		result, mcpErr = s.handleInitialize(r.Context(), req.Params)
+		result, rerr = s.initialize(w, req.Params)
+	case "ping":
+		result = struct{}{}
 	case "tools/list":
-		result, mcpErr = s.handleToolsList(r.Context())
+		result = map[string]any{"tools": tools}
 	case "tools/call":
-		result, mcpErr = s.handleToolsCall(r.Context(), req.Params)
-	case "resources/search":
-		result, mcpErr = s.handleResourcesSearch(r.Context(), req.Params)
-	case "resources/get":
-		result, mcpErr = s.handleResourcesGet(r.Context(), req.Params)
+		result, rerr = s.callTool(r.Context(), s.client(r), req.Params)
 	default:
-		s.respondError(w, req.ID, -32601, fmt.Sprintf("Method not found: %s", req.Method))
+		rerr = &rpcError{codeMethodNotFound, "method not found: " + req.Method}
+	}
+	if rerr != nil {
+		writeJSON(w, response{JSONRPC: "2.0", ID: req.ID, Error: rerr})
 		return
 	}
-	
-	if mcpErr != nil {
-		s.respondError(w, req.ID, mcpErr.Code, mcpErr.Message)
-		return
+	writeJSON(w, response{JSONRPC: "2.0", ID: req.ID, Result: result})
+}
+
+// allowedOrigin rejects browser requests from other sites (DNS rebinding);
+// requests without an Origin come from local tools.
+func allowedOrigin(origin string) bool {
+	if origin == "" {
+		return true
 	}
-	
-	s.respond(w, req.ID, result)
-}
-
-// handleSSE handles Server-Sent Events for Streamable HTTP transport
-func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	
-	// For now, just return a simple SSE stream that stays open
-	// In a full implementation, this would maintain a connection and send notifications
-	w.WriteHeader(http.StatusOK)
-	
-	// Send a ping comment to establish connection
-	fmt.Fprint(w, ": ping\n\n")
-	
-	// Keep connection open but don't block - client will reconnect if needed
-	if flusher, ok := w.(http.Flusher); ok {
-		flusher.Flush()
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
 	}
-}
-
-// InitializeResult represents the response to initialize
-type InitializeResult struct {
-	ProtocolVersion string                 `json:"protocolVersion"`
-	Capabilities    map[string]interface{} `json:"capabilities"`
-	ServerInfo      struct {
-		Name    string `json:"name"`
-		Version string `json:"version"`
-	} `json:"serverInfo"`
-}
-
-// handleInitialize handles the initialize method
-func (s *Server) handleInitialize(ctx context.Context, params json.RawMessage) (interface{}, *MCPError) {
-	result := InitializeResult{
-		ProtocolVersion: "2024-11-05",
-		Capabilities: map[string]interface{}{
-			"tools": map[string]interface{}{},
-		},
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+		return true
 	}
-	result.ServerInfo.Name = "lorag"
-	result.ServerInfo.Version = "0.1.0"
-	
-	return result, nil
+	return false
 }
 
-// handleToolsList returns available tools
-func (s *Server) handleToolsList(ctx context.Context) (interface{}, *MCPError) {
-	return map[string]interface{}{
-		"tools": []MCPTool{
-			{
-				Name:        "search",
-				Description: "Search through indexed documents using semantic search",
-				InputSchema: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"},"top_k":{"type":"integer","default":5}},"required":["query"]}`),
-			},
-			{
-				Name:        "index_file",
-				Description: "Index a file or directory",
-				InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"recursive":{"type":"boolean","default":false}},"required":["path"]}`),
-			},
-			{
-				Name:        "get_stats",
-				Description: "Get indexing statistics",
-				InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
-			},
-		},
+func writeJSON(w http.ResponseWriter, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(v)
+}
+
+func (s *Server) initialize(w http.ResponseWriter, params json.RawMessage) (any, *rpcError) {
+	var p struct {
+		ProtocolVersion string `json:"protocolVersion"`
+		ClientInfo      struct {
+			Name    string `json:"name"`
+			Version string `json:"version"`
+		} `json:"clientInfo"`
+	}
+	if len(params) > 0 {
+		if err := json.Unmarshal(params, &p); err != nil {
+			return nil, &rpcError{codeInvalidParams, "invalid params"}
+		}
+	}
+	version := protocolVersions[0]
+	for _, v := range protocolVersions {
+		if v == p.ProtocolVersion {
+			version = v
+		}
+	}
+
+	var b [16]byte
+	rand.Read(b[:])
+	id := hex.EncodeToString(b[:])
+	s.mu.Lock()
+	if len(s.sessions) >= maxSessions {
+		clear(s.sessions)
+	}
+	s.sessions[id] = p.ClientInfo.Name
+	s.mu.Unlock()
+	w.Header().Set("Mcp-Session-Id", id)
+
+	return map[string]any{
+		"protocolVersion": version,
+		"capabilities":    map[string]any{"tools": map[string]any{}},
+		"serverInfo":      map[string]string{"name": "lorag", "version": s.version},
+		"instructions": "Lorag searches the user's local files. Use search first; " +
+			"use get_document to read a whole file from a result's document_id.",
 	}, nil
 }
 
-// handleToolsCall handles tool invocations
-func (s *Server) handleToolsCall(ctx context.Context, params json.RawMessage) (interface{}, *MCPError) {
+// client names the agent behind a request, for the activity log.
+func (s *Server) client(r *http.Request) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.sessions[r.Header.Get("Mcp-Session-Id")]
+}
+
+type tool struct {
+	Name        string          `json:"name"`
+	Title       string          `json:"title,omitempty"`
+	Description string          `json:"description"`
+	InputSchema json.RawMessage `json:"inputSchema"`
+	Annotations map[string]bool `json:"annotations,omitempty"`
+}
+
+var tools = []tool{
+	{
+		Name:  "search",
+		Title: "Search local files",
+		Description: "Search the indexed local files. Hybrid by default: meaning (embeddings) and exact words (BM25) fused. " +
+			"Each result gives its source path, document_id and chunk text.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{` +
+			`"query":{"type":"string","description":"What to look for, in natural language or exact terms"},` +
+			`"top_k":{"type":"integer","minimum":1,"maximum":50,"default":5},` +
+			`"mode":{"type":"string","enum":["hybrid","vector","keyword"],"default":"hybrid"},` +
+			`"extension":{"type":"string","description":"Only files with this extension, e.g. .md"},` +
+			`"path":{"type":"string","description":"Only the file with this exact path"},` +
+			`"context":{"type":"integer","minimum":0,"maximum":3,"default":0,"description":"Neighbor chunks to include on each side"}` +
+			`},"required":["query"]}`),
+		Annotations: map[string]bool{"readOnlyHint": true},
+	},
+	{
+		Name:        "get_document",
+		Title:       "Read an indexed document",
+		Description: "Return the full indexed text of a document, by document_id (from search) or path.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{` +
+			`"document_id":{"type":"string"},"path":{"type":"string"}}}`),
+		Annotations: map[string]bool{"readOnlyHint": true},
+	},
+	{
+		Name:        "index_file",
+		Title:       "Index a file or directory",
+		Description: "Index a file, or every supported file of a directory, so it becomes searchable.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{` +
+			`"path":{"type":"string"},"recursive":{"type":"boolean","default":false}},"required":["path"]}`),
+		Annotations: map[string]bool{"readOnlyHint": false, "destructiveHint": false, "idempotentHint": true},
+	},
+	{
+		Name:        "get_stats",
+		Title:       "Index statistics",
+		Description: "Number of documents and chunks indexed, and the state of the search index.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		Annotations: map[string]bool{"readOnlyHint": true},
+	},
+}
+
+// toolResult is the content of a tools/call result. Tool failures are
+// reported here (isError) so the agent can read them, not as protocol errors.
+func toolResult(text string, isError bool) map[string]any {
+	r := map[string]any{"content": []map[string]string{{"type": "text", "text": text}}}
+	if isError {
+		r["isError"] = true
+	}
+	return r
+}
+
+var errArgs = errors.New("invalid arguments")
+
+func (s *Server) callTool(ctx context.Context, client string, params json.RawMessage) (any, *rpcError) {
 	var call struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
 	}
-	
 	if err := json.Unmarshal(params, &call); err != nil {
-		return nil, &MCPError{Code: -32602, Message: "Invalid params"}
+		return nil, &rpcError{codeInvalidParams, "invalid params"}
 	}
-	
+	if len(call.Arguments) == 0 {
+		call.Arguments = json.RawMessage("{}")
+	}
+	var text string
+	var err error
 	switch call.Name {
 	case "search":
-		return s.handleToolSearch(ctx, call.Arguments)
+		text, err = s.search(ctx, client, call.Arguments)
 	case "get_document":
-		return s.handleToolGetDocument(ctx, call.Arguments)
+		text, err = s.getDocument(call.Arguments)
 	case "index_file":
-		return s.handleToolIndexFile(ctx, call.Arguments)
+		text, err = s.index(ctx, call.Arguments)
 	case "get_stats":
-		return s.handleToolGetStats(ctx)
+		text, err = s.stats()
 	default:
-		return nil, &MCPError{Code: -32601, Message: fmt.Sprintf("Unknown tool: %s", call.Name)}
+		return nil, &rpcError{codeInvalidParams, "unknown tool: " + call.Name}
 	}
+	if err != nil {
+		return toolResult(err.Error(), true), nil
+	}
+	return toolResult(text, false), nil
 }
 
-// defaultTemplates contains built-in prompt templates
-var defaultTemplates = map[string]string{
-	"default": `Found {{count}} results for: {{query}}
-
-{{results}}
-
-Based on these documents, please answer the question: {{query}}`,
-
-	"concise": `Results for: {{query}}
-
-{{results}}
-
-Provide a brief 2-3 sentence answer.`,
-
-	"detailed": `Search Results for: {{query}}
-
-{{results}}
-
-Please provide a comprehensive answer citing the sources [1], [2], etc.`,
-
-	"academic": `Sources found for: {{query}}
-
-{{results}}
-
-Provide a formal academic response with proper structure and citations.`,
-
-	"bullet": `Results for: {{query}}
-
-{{results}}
-
-Answer using bullet points for clarity.`,
+func decode(args json.RawMessage, v any) error {
+	d := json.NewDecoder(bytes.NewReader(args))
+	if err := d.Decode(v); err != nil {
+		return fmt.Errorf("%w: %v", errArgs, err)
+	}
+	return nil
 }
 
-// handleToolSearch handles the search tool
-func (s *Server) handleToolSearch(ctx context.Context, args json.RawMessage) (interface{}, *MCPError) {
-	var params struct {
-		Query    string `json:"query"`
-		TopK     int    `json:"top_k"`
-		Template string `json:"template,omitempty"`
+// templates frame the results; the default one is chosen in the settings.
+var templates = map[string]string{
+	"default":  "Found {{count}} results for: {{query}}\n\n{{results}}",
+	"concise":  "Results for: {{query}}\n\n{{results}}\nProvide a brief 2-3 sentence answer.",
+	"detailed": "Search results for: {{query}}\n\n{{results}}\nGive a comprehensive answer citing the sources [1], [2], etc.",
+	"academic": "Sources found for: {{query}}\n\n{{results}}\nGive a formal answer with proper structure and citations.",
+	"bullet":   "Results for: {{query}}\n\n{{results}}\nAnswer using bullet points.",
+}
+
+func (s *Server) search(ctx context.Context, client string, args json.RawMessage) (string, error) {
+	var p struct {
+		Query     string `json:"query"`
+		TopK      int    `json:"top_k"`
+		Mode      string `json:"mode"`
+		Extension string `json:"extension"`
+		Path      string `json:"path"`
+		Context   int    `json:"context"`
+		Template  string `json:"template"`
 	}
-	
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, &MCPError{Code: -32602, Message: "Invalid arguments"}
+	if err := decode(args, &p); err != nil {
+		return "", err
 	}
-	
-	if params.TopK <= 0 {
-		params.TopK = 5
+	if strings.TrimSpace(p.Query) == "" {
+		return "", errors.New("query is required")
 	}
-	
-	// Use user's default template if none specified
-	if params.Template == "" {
-		settings, _ := s.settingsStore.GetAppSettings()
-		if settings != nil && settings.DefaultTemplate != "" {
-			params.Template = settings.DefaultTemplate
-		} else {
-			params.Template = "default"
+	p.TopK = min(max(p.TopK, 0), 50)
+	if p.TopK == 0 {
+		p.TopK = 5
+	}
+	q := query.Query{
+		Text: p.Query, TopK: p.TopK, Mode: query.Mode(p.Mode),
+		Source: activity.SourceMCP, Client: client, Tool: "search",
+	}
+	if p.Extension != "" {
+		ext := strings.ToLower(p.Extension)
+		if !strings.HasPrefix(ext, ".") {
+			ext = "." + ext
+		}
+		q.Filters = append(q.Filters, query.Filter{Field: "extension", Operator: "eq", Value: ext})
+	}
+	if p.Path != "" {
+		q.Filters = append(q.Filters, query.Filter{Field: "path", Operator: "eq", Value: p.Path})
+	}
+	resp, err := s.query.Run(ctx, q)
+	if err != nil {
+		return "", err
+	}
+	results := s.query.WithContext(resp.Results, min(max(p.Context, 0), 3))
+	if len(results) == 0 {
+		return "No results for: " + p.Query, nil
+	}
+
+	var b strings.Builder
+	for _, w := range resp.Warnings {
+		fmt.Fprintf(&b, "Note: %s\n\n", w)
+	}
+	for i, r := range results {
+		fmt.Fprintf(&b, "[%d] %s (chunk %d, score %.3f, document_id %s)\n%s\n\n",
+			i+1, r.Source.Path, r.Source.Position, r.Score, r.DocumentID, r.Content)
+	}
+
+	name := p.Template
+	if name == "" {
+		if st, err := s.settings.GetAppSettings(); err == nil && st.DefaultTemplate != "" {
+			name = st.DefaultTemplate
 		}
 	}
-	
-	q := query.Query{
-		Text: params.Query,
-		TopK: params.TopK,
-	}
-	
-	results, err := s.query.Search(ctx, q)
-	if err != nil {
-		return nil, &MCPError{Code: -32000, Message: err.Error()}
-	}
-	
-	if len(results) == 0 {
-		return map[string]interface{}{
-			"content": []map[string]string{
-				{"type": "text", "text": "No results found for query: " + params.Query},
-			},
-		}, nil
-	}
-	
-	// Format results list
-	var resultsList strings.Builder
-	for i, r := range results {
-		resultsList.WriteString(fmt.Sprintf("[%d] Source: %s (relevance: %.2f)\n%s\n\n", 
-			i+1, r.Source.Filename, r.Score, r.Content))
-	}
-	
-	// Apply template
-	template, ok := defaultTemplates[params.Template]
+	tmpl, ok := templates[name]
 	if !ok {
-		template = defaultTemplates["default"]
+		tmpl = templates["default"]
 	}
-	
-	output := strings.ReplaceAll(template, "{{query}}", params.Query)
-	output = strings.ReplaceAll(output, "{{count}}", fmt.Sprintf("%d", len(results)))
-	output = strings.ReplaceAll(output, "{{results}}", resultsList.String())
-	
-	return map[string]interface{}{
-		"content": []map[string]string{
-			{"type": "text", "text": output},
-		},
-	}, nil
+	out := strings.ReplaceAll(tmpl, "{{query}}", p.Query)
+	out = strings.ReplaceAll(out, "{{count}}", fmt.Sprint(len(results)))
+	return strings.ReplaceAll(out, "{{results}}", b.String()), nil
 }
 
-// handleToolGetDocument handles the get_document tool
-func (s *Server) handleToolGetDocument(ctx context.Context, args json.RawMessage) (interface{}, *MCPError) {
-	var params struct {
+func (s *Server) getDocument(args json.RawMessage) (string, error) {
+	var p struct {
 		DocumentID string `json:"document_id"`
+		Path       string `json:"path"`
 	}
-	
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, &MCPError{Code: -32602, Message: "Invalid arguments"}
+	if err := decode(args, &p); err != nil {
+		return "", err
 	}
-	
-	// Get document
-	doc, err := s.store.GetDocument(params.DocumentID)
+	var doc *store.Document
+	var err error
+	switch {
+	case p.DocumentID != "":
+		doc, err = s.store.GetDocument(p.DocumentID)
+	case p.Path != "":
+		doc, err = s.store.GetDocumentByPath(p.Path)
+	default:
+		return "", errors.New("document_id or path is required")
+	}
+	if err != nil || doc == nil {
+		return "", errors.New("document not found")
+	}
+	chunks, err := s.store.GetChunksByDocument(doc.ID)
 	if err != nil {
-		return nil, &MCPError{Code: -32000, Message: fmt.Sprintf("Document not found: %s", params.DocumentID)}
+		return "", err
 	}
-	
-	// Get chunks
-	chunks, err := s.store.GetChunksByDocument(params.DocumentID)
-	if err != nil {
-		return nil, &MCPError{Code: -32000, Message: "Failed to get chunks"}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Document: %s\nPath: %s\nChunks: %d\n", doc.Filename, doc.Path, len(chunks))
+	if doc.IndexedAt != nil {
+		fmt.Fprintf(&b, "Indexed: %s\n", doc.IndexedAt.Format("2006-01-02 15:04"))
 	}
-	
-	// Format output
-	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Document: %s\n", doc.Filename))
-	output.WriteString(fmt.Sprintf("Path: %s\n", doc.Path))
-	output.WriteString(fmt.Sprintf("Indexed: %s\n", doc.IndexedAt.Format("2006-01-02 15:04")))
-	output.WriteString(fmt.Sprintf("Chunks: %d\n\n", len(chunks)))
-	
-	output.WriteString("=== CONTENT CHUNKS ===\n\n")
-	for i, chunk := range chunks {
-		output.WriteString(fmt.Sprintf("--- Chunk %d (position %d) ---\n", i+1, chunk.Position))
-		output.WriteString(chunk.Content)
-		output.WriteString("\n\n")
+	for _, c := range chunks {
+		fmt.Fprintf(&b, "\n--- chunk %d ---\n%s\n", c.Position, c.Content)
 	}
-	
-	return map[string]interface{}{
-		"content": []map[string]string{
-			{"type": "text", "text": output.String()},
-		},
-	}, nil
+	return b.String(), nil
 }
 
-// handleToolIndexFile handles the index_file tool
-func (s *Server) handleToolIndexFile(ctx context.Context, args json.RawMessage) (interface{}, *MCPError) {
-	var params struct {
+func (s *Server) index(ctx context.Context, args json.RawMessage) (string, error) {
+	var p struct {
 		Path      string `json:"path"`
 		Recursive bool   `json:"recursive"`
 	}
-	
-	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, &MCPError{Code: -32602, Message: "Invalid arguments"}
+	if err := decode(args, &p); err != nil {
+		return "", err
 	}
-	
-	result, err := s.indexer.IndexDirectory(ctx, params.Path, params.Recursive)
+	info, err := os.Stat(p.Path)
 	if err != nil {
-		return nil, &MCPError{Code: -32000, Message: err.Error()}
+		return "", err
 	}
-	
-	output := result.String()
-	
-	return map[string]interface{}{
-		"content": []map[string]string{
-			{"type": "text", "text": output},
-		},
-	}, nil
-}
-
-// handleToolGetStats handles the get_stats tool
-func (s *Server) handleToolGetStats(ctx context.Context) (interface{}, *MCPError) {
-	stats := s.indexer.GetStats()
-	
-	output := fmt.Sprintf("Indexing Statistics:\n\n")
-	for k, v := range stats {
-		output += fmt.Sprintf("%s: %v\n", k, v)
-	}
-	
-	return map[string]interface{}{
-		"content": []map[string]string{
-			{"type": "text", "text": output},
-		},
-	}, nil
-}
-
-// handleResourcesSearch handles resource search
-func (s *Server) handleResourcesSearch(ctx context.Context, params json.RawMessage) (interface{}, *MCPError) {
-	var searchParams struct {
-		Query string `json:"query"`
-		Limit int    `json:"limit"`
-	}
-	
-	if err := json.Unmarshal(params, &searchParams); err != nil {
-		return nil, &MCPError{Code: -32602, Message: "Invalid params"}
-	}
-	
-	if searchParams.Limit <= 0 {
-		searchParams.Limit = 10
-	}
-	
-	q := query.Query{
-		Text: searchParams.Query,
-		TopK: searchParams.Limit,
-	}
-	
-	results, err := s.query.Search(ctx, q)
-	if err != nil {
-		return nil, &MCPError{Code: -32000, Message: err.Error()}
-	}
-	
-	resources := make([]map[string]interface{}, len(results))
-	for i, r := range results {
-		resources[i] = map[string]interface{}{
-			"uri":         fmt.Sprintf("file://%s#chunk=%s", r.Source.Path, r.ChunkID),
-			"name":        r.Source.Filename,
-			"description": fmt.Sprintf("Chunk %d from %s (score: %.3f)", r.Source.Position, r.Source.Filename, r.Score),
-			"mimeType":    "text/plain",
+	if !info.IsDir() {
+		doc, err := s.indexer.IndexFile(ctx, p.Path)
+		if err != nil {
+			return "", err
 		}
+		return fmt.Sprintf("Indexed %s: %d chunks (document_id %s)", doc.Path, doc.ChunkCount, doc.ID), nil
 	}
-	
-	return map[string]interface{}{
-		"resources": resources,
-	}, nil
+	result, err := s.indexer.IndexDirectory(ctx, p.Path, p.Recursive)
+	if err != nil {
+		return "", err
+	}
+	return result.String(), nil
 }
 
-// handleResourcesGet handles resource retrieval
-func (s *Server) handleResourcesGet(ctx context.Context, params json.RawMessage) (interface{}, *MCPError) {
-	var getParams struct {
-		URI string `json:"uri"`
+func (s *Server) stats() (string, error) {
+	st := s.indexer.GetStats()
+	b, err := json.MarshalIndent(st, "", "  ")
+	if err != nil {
+		return "", err
 	}
-	
-	if err := json.Unmarshal(params, &getParams); err != nil {
-		return nil, &MCPError{Code: -32602, Message: "Invalid params"}
-	}
-	
-	// Parse chunk ID from URI
-	// Format: file://path#chunk=chunkID
-	// This is a simplified implementation
-	
-	return map[string]interface{}{
-		"contents": []map[string]string{
-			{"uri": getParams.URI, "mimeType": "text/plain", "text": "Resource content"},
-		},
-	}, nil
-}
-
-// respond sends a successful response
-func (s *Server) respond(w http.ResponseWriter, id interface{}, result interface{}) {
-	response := MCPResponse{
-		JSONRPC: "2.0",
-		Result:  result,
-		ID:      id,
-	}
-	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
-}
-
-// respondError sends an error response
-func (s *Server) respondError(w http.ResponseWriter, id interface{}, code int, message string) {
-	response := MCPResponse{
-		JSONRPC: "2.0",
-		Error: &MCPError{
-			Code:    code,
-			Message: message,
-		},
-		ID: id,
-	}
-	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	return string(b), nil
 }

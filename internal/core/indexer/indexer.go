@@ -6,13 +6,15 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/lorag/lorag/internal/core/engine"
 	"github.com/lorag/lorag/internal/core/store"
-	"github.com/lorag/lorag/internal/core/vector"
 	"github.com/lorag/lorag/internal/embeddings"
 	"github.com/lorag/lorag/internal/parsers"
 )
@@ -21,12 +23,48 @@ import (
 type Indexer struct {
 	store         *store.BoltStore
 	settingsStore *store.SettingsStore
-	vectorIdx     vector.Index
+	index         *engine.Engine
 	embedder      embeddings.Provider
 	parserReg     *parsers.Registry
 	chunker       *Chunker
 	maxChunks     int
 	queue         *Queue // Async queue for parallel indexing
+
+	eventsMu sync.Mutex
+	events   []Event // most recent last
+}
+
+// Event records the outcome of indexing one file.
+type Event struct {
+	Time       time.Time `json:"time"`
+	Path       string    `json:"path"`
+	DocumentID string    `json:"document_id,omitempty"`
+	Status     string    `json:"status"` // indexed, unchanged, failed
+	Chunks     int       `json:"chunks"`
+	DurationMs float64   `json:"duration_ms"`
+	Error      string    `json:"error,omitempty"`
+}
+
+const maxEvents = 200
+
+func (i *Indexer) record(ev Event) {
+	i.eventsMu.Lock()
+	defer i.eventsMu.Unlock()
+	i.events = append(i.events, ev)
+	if len(i.events) > maxEvents {
+		i.events = i.events[len(i.events)-maxEvents:]
+	}
+}
+
+// RecentEvents returns up to limit indexing events, newest first.
+func (i *Indexer) RecentEvents(limit int) []Event {
+	i.eventsMu.Lock()
+	defer i.eventsMu.Unlock()
+	out := make([]Event, 0, min(limit, len(i.events)))
+	for j := len(i.events) - 1; j >= 0 && len(out) < limit; j-- {
+		out = append(out, i.events[j])
+	}
+	return out
 }
 
 // Config holds indexer configuration
@@ -42,7 +80,7 @@ type Config struct {
 func NewIndexer(
 	st *store.BoltStore,
 	settings *store.SettingsStore,
-	vectorIdx vector.Index,
+	index *engine.Engine,
 	embedder embeddings.Provider,
 	cfg Config,
 ) *Indexer {
@@ -80,7 +118,7 @@ func NewIndexer(
 	idx := &Indexer{
 		store:         st,
 		settingsStore: settings,
-		vectorIdx:     vectorIdx,
+		index:         index,
 		embedder:      embedder,
 		parserReg:     parsers.NewRegistryWithConfig(parserCfg),
 		chunker:       NewChunker(cfg.ChunkSize, cfg.ChunkOverlap),
@@ -133,114 +171,144 @@ func (i *Indexer) Stop() {
 	}
 }
 
-// IndexFile indexes a single file
+// IndexFile indexes a single file, skipping it when its checksum is unchanged.
 func (i *Indexer) IndexFile(ctx context.Context, path string) (*store.Document, error) {
-	// Check if file exists
+	start := time.Now()
+	doc, fresh, err := i.indexFile(ctx, path)
+	ev := Event{Time: start.UTC(), Path: path, DurationMs: float64(time.Since(start).Microseconds()) / 1000}
+	switch {
+	case err != nil:
+		ev.Status, ev.Error = "failed", err.Error()
+	case fresh:
+		ev.Status, ev.DocumentID, ev.Chunks = "indexed", doc.ID, doc.ChunkCount
+	default:
+		ev.Status, ev.DocumentID, ev.Chunks = "unchanged", doc.ID, doc.ChunkCount
+	}
+	i.record(ev)
+	return doc, err
+}
+
+func (i *Indexer) indexFile(ctx context.Context, path string) (*store.Document, bool, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil, fmt.Errorf("file not found: %w", err)
+		return nil, false, fmt.Errorf("file not found: %w", err)
 	}
-	
 	if info.IsDir() {
-		return nil, fmt.Errorf("path is a directory: %s", path)
+		return nil, false, fmt.Errorf("path is a directory: %s", path)
 	}
-	
-	// Check if already indexed and up to date
-	existingDoc, err := i.store.GetDocumentByPath(path)
-	if err == nil {
-		// Check if file has changed
-		checksum, err := i.calculateChecksum(path)
-		if err != nil {
-			return nil, err
-		}
-		
-		if existingDoc.Checksum == checksum {
-			// File hasn't changed, skip
-			return existingDoc, nil
-		}
-		
-		// File changed, delete old index
-		if err := i.DeleteDocument(ctx, existingDoc.ID); err != nil {
-			return nil, fmt.Errorf("failed to delete old index: %w", err)
-		}
-	}
-	
-	// Parse file
-	content, err := i.parseFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse file: %w", err)
-	}
-	
-	// Create document
-	ext := strings.ToLower(filepath.Ext(path))
-	doc := store.NewDocument(path, filepath.Base(path), ext, info.Size())
-	doc.Content = content
-	
+
 	checksum, err := i.calculateChecksum(path)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	doc.Checksum = checksum
-	
-	// Save document first
-	if err := i.store.SaveDocument(doc); err != nil {
-		return nil, fmt.Errorf("failed to save document: %w", err)
+	existing, err := i.store.GetDocumentByPath(path)
+	if err != nil {
+		existing = nil
 	}
-	
-	// Chunk content
-	chunks := i.chunker.Chunk(content)
-	
-	// Check chunk limit
+	if existing != nil && existing.Checksum == checksum && existing.IndexedAt != nil {
+		return existing, false, nil
+	}
+
+	content, err := i.parseFile(path)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to parse file: %w", err)
+	}
+	texts := i.chunker.Chunk(content)
+
 	currentCount, _ := i.store.CountChunks()
-	if currentCount+len(chunks) > i.maxChunks {
-		// Delete document we just saved
-		i.store.DeleteDocument(doc.ID)
-		return nil, fmt.Errorf("max chunks limit reached (%d)", i.maxChunks)
+	if existing != nil {
+		currentCount -= existing.ChunkCount
 	}
-	
-	// Process chunks
-	for idx, chunkText := range chunks {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
+	if currentCount+len(texts) > i.maxChunks {
+		return nil, false, fmt.Errorf("max chunks limit reached (%d)", i.maxChunks)
+	}
+
+	// Embed everything before touching the store, so that a failure (e.g. the
+	// embedding service being down) leaves the previous version intact.
+	doc := store.NewDocument(path, filepath.Base(path), strings.ToLower(filepath.Ext(path)), info.Size())
+	doc.Checksum = checksum
+	chunks := make([]*store.Chunk, 0, len(texts))
+	searchFrom := 0
+	for idx, text := range texts {
+		if err := ctx.Err(); err != nil {
+			return nil, false, err
 		}
-		
-		// Create chunk
-		startByte := strings.Index(content, chunkText)
+		startByte := strings.Index(content[searchFrom:], text)
+		if startByte < 0 {
+			startByte = strings.Index(content, text)
+		} else {
+			startByte += searchFrom
+		}
 		if startByte < 0 {
 			startByte = 0
 		}
-		endByte := startByte + len(chunkText)
-		
-		chunk := store.NewChunk(doc.ID, chunkText, idx, startByte, endByte)
-		chunk.Tokens = i.chunker.CountTokens(chunkText)
-		
-		// Generate embedding
-		embedding, err := i.embedder.Embed(chunkText)
+		searchFrom = startByte + 1
+		if searchFrom > len(content) {
+			searchFrom = len(content)
+		}
+
+		chunk := store.NewChunk(doc.ID, text, idx, startByte, startByte+len(text))
+		chunk.Tokens = i.chunker.CountTokens(text)
+		embedding, err := i.embedder.Embed(text)
 		if err != nil {
-			return nil, fmt.Errorf("failed to embed chunk %d: %w", idx, err)
+			return nil, false, fmt.Errorf("failed to embed chunk %d: %w", idx, err)
+		}
+		if len(embedding) != i.index.Dim() {
+			return nil, false, fmt.Errorf("embedding model returned %d dimensions, index is configured for %d (check embedding_dim)", len(embedding), i.index.Dim())
 		}
 		chunk.SetEmbedding(embedding)
-		
-		// Save chunk
-		if err := i.store.SaveChunk(chunk); err != nil {
-			return nil, fmt.Errorf("failed to save chunk: %w", err)
+		chunks = append(chunks, chunk)
+	}
+
+	var stale []string
+	if existing != nil {
+		old, err := i.store.GetChunksByDocument(existing.ID)
+		if err != nil {
+			return nil, false, fmt.Errorf("failed to read previous version: %w", err)
 		}
-		
-		// Add to vector index
-		if err := i.vectorIdx.Add(chunk.ID, embedding); err != nil {
-			return nil, fmt.Errorf("failed to add to vector index: %w", err)
+		for _, c := range old {
+			stale = append(stale, c.ID)
+		}
+		if err := i.store.DeleteDocument(existing.ID); err != nil {
+			return nil, false, fmt.Errorf("failed to delete previous version: %w", err)
 		}
 	}
-	
-	// Mark document as indexed
 	doc.MarkIndexed(len(chunks))
 	if err := i.store.SaveDocument(doc); err != nil {
-		return nil, err
+		return nil, false, fmt.Errorf("failed to save document: %w", err)
 	}
-	
-	return doc, nil
+	entries := make([]engine.Chunk, len(chunks))
+	for n, chunk := range chunks {
+		if err := i.store.SaveChunk(chunk); err != nil {
+			i.DeleteDocument(ctx, doc.ID)
+			i.index.Remove(stale...)
+			return nil, false, fmt.Errorf("failed to save chunk: %w", err)
+		}
+		entries[n] = indexEntry(doc, chunk)
+	}
+	// Old chunks leave the index in the same write as the new ones arrive.
+	if err := i.index.Replace(stale, entries); err != nil {
+		i.DeleteDocument(ctx, doc.ID)
+		i.index.Remove(stale...)
+		return nil, false, fmt.Errorf("failed to index chunks: %w", err)
+	}
+	return doc, true, nil
+}
+
+// indexEntry is what the search index keeps of a chunk.
+func indexEntry(doc *store.Document, c *store.Chunk) engine.Chunk {
+	return engine.Chunk{
+		ID:         c.ID,
+		DocumentID: c.DocumentID,
+		Content:    c.Content,
+		Path:       doc.Path,
+		Filename:   doc.Filename,
+		Extension:  doc.Extension,
+		Position:   c.Position,
+		StartByte:  c.StartByte,
+		EndByte:    c.EndByte,
+		Vector:     c.Embedding,
+	}
 }
 
 // IndexDirectory indexes all files in a directory
@@ -352,55 +420,81 @@ func (i *Indexer) indexDirectoryParallel(ctx context.Context, files []string, re
 	return result, nil
 }
 
-// DeleteDocument removes a document and its chunks from the index
+// DeleteDocument removes a document and its chunks from the store and the indexes.
 func (i *Indexer) DeleteDocument(ctx context.Context, docID string) error {
-	// Get chunks for this document
 	chunks, err := i.store.GetChunksByDocument(docID)
 	if err != nil {
 		return err
 	}
-	
-	// Delete from vector index
-	for _, chunk := range chunks {
-		if err := i.vectorIdx.Delete(chunk.ID); err != nil {
-			// Log but continue
-			fmt.Printf("failed to delete chunk from vector index: %v\n", err)
-		}
+	ids := make([]string, len(chunks))
+	for n, chunk := range chunks {
+		ids[n] = chunk.ID
 	}
-	
-	// Delete chunks from store
-	if err := i.store.DeleteChunksByDocument(docID); err != nil {
+	if err := i.index.Remove(ids...); err != nil {
 		return err
 	}
-	
-	// Mark document as deleted
 	return i.store.DeleteDocument(docID)
 }
 
-// ReindexDocument reindexes a document
+// ReindexDocument reindexes a document even if its file is unchanged.
 func (i *Indexer) ReindexDocument(ctx context.Context, docID string) (*store.Document, error) {
 	doc, err := i.store.GetDocument(docID)
 	if err != nil {
 		return nil, err
 	}
-	
 	if err := i.DeleteDocument(ctx, docID); err != nil {
 		return nil, err
 	}
-	
 	return i.IndexFile(ctx, doc.Path)
+}
+
+// Rebuild repopulates both indexes from the chunks in the store. Chunks whose
+// stored embedding does not match the index dimension are re-embedded.
+func (i *Indexer) Rebuild(ctx context.Context) (int, error) {
+	n := 0
+	// Documents are loaded first: a Bolt read transaction must not be
+	// opened inside the one that iterates the chunks.
+	all, err := i.store.ListDocuments(0, math.MaxInt)
+	if err != nil {
+		return 0, err
+	}
+	docs := make(map[string]*store.Document, len(all))
+	for _, d := range all {
+		docs[d.ID] = d
+	}
+	err = i.index.Rebuild(func(yield func(engine.Chunk) error) error {
+		return i.store.ForEachChunk(func(c *store.Chunk) error {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			doc, ok := docs[c.DocumentID]
+			if !ok {
+				return nil // orphan chunk: its document is gone
+			}
+			vec := c.Embedding
+			if len(vec) != i.index.Dim() {
+				var err error
+				if vec, err = i.embedder.Embed(c.Content); err != nil {
+					return fmt.Errorf("re-embed chunk %s: %w", c.ID, err)
+				}
+			}
+			n++
+			en := indexEntry(doc, c)
+			en.Vector = vec
+			return yield(en)
+		})
+	})
+	return n, err
 }
 
 // GetStats returns indexer statistics
 func (i *Indexer) GetStats() map[string]interface{} {
 	docCount, _ := i.store.CountDocuments()
 	chunkCount, _ := i.store.CountChunks()
-	vectorStats := i.vectorIdx.Stats()
-	
 	return map[string]interface{}{
 		"documents": docCount,
 		"chunks":    chunkCount,
-		"vector":    vectorStats,
+		"index":     i.index.Stats(),
 		"maxChunks": i.maxChunks,
 	}
 }

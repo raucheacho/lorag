@@ -107,10 +107,16 @@ type AppSettings struct {
 	EmbeddingURL      string `json:"embedding_url"`
 	EmbeddingDim      int    `json:"embedding_dim"`
 
-	// Vector
-	VectorIndexType string `json:"vector_index_type"`
+	// Vector index (VectixDB HNSW)
+	VectorMetric    string `json:"vector_metric"` // cosine, l2, dot
+	VectorQuantized bool   `json:"vector_quantized"`
 	VectorM         int    `json:"vector_m"`
 	VectorEf        int    `json:"vector_ef"`
+	VectorEfSearch  int    `json:"vector_ef_search"`
+
+	// Keyword index (VectixDB BM25)
+	BM25K1 float32 `json:"bm25_k1"`
+	BM25B  float32 `json:"bm25_b"`
 
 	// Indexing
 	MaxChunks    int `json:"max_chunks"`
@@ -118,7 +124,7 @@ type AppSettings struct {
 	ChunkOverlap int `json:"chunk_overlap"`
 	IndexWorkers int `json:"index_workers"`
 
-	// UI
+	// MCP output template
 	DefaultTemplate string `json:"default_template"`
 
 	// OCR & Vision
@@ -126,33 +132,30 @@ type AppSettings struct {
 	OcrModel             string `json:"ocr_model"`
 	TranscriptionEnabled bool   `json:"transcription_enabled"`
 	WhisperModel         string `json:"whisper_model"` // tiny, base, small
-
-	// Features
-	EncryptionEnabled bool `json:"encryption_enabled"`
 }
 
 // DefaultSettings returns default settings
 func DefaultSettings() *AppSettings {
 	return &AppSettings{
-		Host:              "localhost",
-		Port:              8080,
-		EmbeddingProvider: "ollama",
-		EmbeddingModel:    "nomic-embed-text",
-		EmbeddingURL:      "http://localhost:11434",
-		EmbeddingDim:      768,
-		VectorIndexType:   "hnsw",
-		VectorM:           16,
-		VectorEf:          200,
-		MaxChunks:         50000,
-		ChunkSize:         512,
-		ChunkOverlap:      50,
-		IndexWorkers:      3,
+		Host:                 "localhost",
+		Port:                 8080,
+		EmbeddingProvider:    "ollama",
+		EmbeddingModel:       "nomic-embed-text",
+		EmbeddingURL:         "http://localhost:11434",
+		EmbeddingDim:         768,
+		VectorMetric:         "cosine",
+		VectorM:              16,
+		VectorEf:             200,
+		VectorEfSearch:       64,
+		BM25K1:               1.2,
+		BM25B:                0.75,
+		MaxChunks:            50000,
+		ChunkSize:            512,
+		ChunkOverlap:         50,
+		IndexWorkers:         3,
 		DefaultTemplate:      "default",
-		OcrEnabled:           false,
 		OcrModel:             "llava:7b",
-		TranscriptionEnabled: false,
-		WhisperModel:         "tiny", // Default to tiny (fast, small)
-		EncryptionEnabled:    false,
+		WhisperModel:         "tiny",
 	}
 }
 

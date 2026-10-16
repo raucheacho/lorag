@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,50 +11,48 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/lorag/lorag/internal/activity"
 	"github.com/lorag/lorag/internal/api/mcp"
 	"github.com/lorag/lorag/internal/api/rest"
 	"github.com/lorag/lorag/internal/config"
+	"github.com/lorag/lorag/internal/core/engine"
 	"github.com/lorag/lorag/internal/core/indexer"
 	"github.com/lorag/lorag/internal/core/query"
 	"github.com/lorag/lorag/internal/core/store"
-	"github.com/lorag/lorag/internal/core/vector"
 	"github.com/lorag/lorag/internal/embeddings"
 	"github.com/lorag/lorag/internal/watcher"
 )
 
 // Server holds the application server
 type Server struct {
-	config         *config.Config
-	store          *store.BoltStore
-	settingsStore  *store.SettingsStore
-	vectorIdx      vector.Index
-	embedder       embeddings.Provider
-	indexer        *indexer.Indexer
-	query          *query.Engine
-	watcher        *watcher.Watcher
-	httpServer     *http.Server
-	appSettings    *store.AppSettings
+	config        *config.Config
+	version       string
+	store         *store.BoltStore
+	settingsStore *store.SettingsStore
+	engine        *engine.Engine
+	embedder      embeddings.Provider
+	indexer       *indexer.Indexer
+	query         *query.Engine
+	activity      *activity.Log
+	watcher       *watcher.Watcher
+	httpServer    *http.Server
+	appSettings   *store.AppSettings
+	startedAt     time.Time
 }
 
 // NewServer creates a new server
-func NewServer(cfg *config.Config) (*Server, error) {
-	// Initialize store
+func NewServer(cfg *config.Config, version string) (*Server, error) {
 	st, err := store.NewBoltStore(cfg.DataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create store: %w", err)
 	}
-
-	// Initialize settings store
 	settingsStore := store.NewSettingsStore(st)
-	
-	// Load persisted settings or use defaults
+
 	appSettings, err := settingsStore.GetAppSettings()
 	if err != nil {
-		fmt.Printf("Warning: failed to load settings, using defaults: %v\n", err)
+		log.Printf("failed to load settings, using defaults: %v", err)
 		appSettings = store.DefaultSettings()
 	}
-
-	// Override with config if explicitly set via env vars
 	if cfg.EmbeddingProvider != "" {
 		appSettings.EmbeddingProvider = cfg.EmbeddingProvider
 	}
@@ -63,213 +62,192 @@ func NewServer(cfg *config.Config) (*Server, error) {
 	if cfg.EmbeddingURL != "" {
 		appSettings.EmbeddingURL = cfg.EmbeddingURL
 	}
+	if cfg.EmbeddingDim > 0 {
+		appSettings.EmbeddingDim = cfg.EmbeddingDim
+	}
 
-	fmt.Printf("✓ Settings loaded (template: %s)\n", appSettings.DefaultTemplate)
-
-	// Initialize embedding provider
-	embedCfg := embeddings.Config{
+	embedder, err := embeddings.NewProvider(embeddings.Config{
 		Type:      embeddings.ProviderType(appSettings.EmbeddingProvider),
 		Model:     appSettings.EmbeddingModel,
 		URL:       appSettings.EmbeddingURL,
+		APIKey:    cfg.EmbeddingAPIKey,
 		Dimension: appSettings.EmbeddingDim,
 		Timeout:   30 * time.Second,
-	}
-
-	embedder, err := embeddings.NewProvider(embedCfg)
+	})
 	if err != nil {
 		st.Close()
 		return nil, fmt.Errorf("failed to create embedder: %w", err)
 	}
 
-	// Initialize vector index (HNSW)
-	vectorCfg := vector.Config{
-		Type:        vector.IndexType(appSettings.VectorIndexType),
-		Dimension:   appSettings.EmbeddingDim,
-		M:           appSettings.VectorM,
-		EfConstruct: appSettings.VectorEf,
-		MaxElements: appSettings.MaxChunks,
-		Distance:    "cosine",
-	}
-
-	vectorIdx, err := vector.NewIndex(vectorCfg)
+	eng, err := engine.Open(engine.Config{
+		Dir:            cfg.IndexDir(),
+		Dim:            appSettings.EmbeddingDim,
+		Metric:         appSettings.VectorMetric,
+		Quantized:      appSettings.VectorQuantized,
+		M:              appSettings.VectorM,
+		EfConstruction: appSettings.VectorEf,
+		EfSearch:       appSettings.VectorEfSearch,
+		BM25K1:         appSettings.BM25K1,
+		BM25B:          appSettings.BM25B,
+	})
 	if err != nil {
 		st.Close()
-		return nil, fmt.Errorf("failed to create vector index: %w", err)
+		return nil, fmt.Errorf("failed to open search engine: %w", err)
 	}
 
-	// Try to load existing vector index
-	vectorPath := cfg.VectorIndexPath()
-	if _, err := os.Stat(vectorPath); err == nil {
-		fmt.Println("Loading existing vector index...")
-		if err := vectorIdx.Load(vectorPath); err != nil {
-			fmt.Printf("Warning: failed to load vector index: %v\n", err)
-		} else {
-			fmt.Println("✓ Vector index loaded")
-		}
-	}
-
-	// Initialize indexer with async queue
-	indexerCfg := indexer.Config{
+	idx := indexer.NewIndexer(st, settingsStore, eng, embedder, indexer.Config{
 		MaxChunks:    cfg.MaxChunksAllowed(),
 		ChunkSize:    appSettings.ChunkSize,
 		ChunkOverlap: appSettings.ChunkOverlap,
 		Workers:      appSettings.IndexWorkers,
 		MaxQueue:     cfg.MaxQueueSize,
-	}
-
-	idx := indexer.NewIndexer(st, settingsStore, vectorIdx, embedder, indexerCfg)
-
-	// Initialize query engine
-	qe := query.NewEngine(st, vectorIdx, embedder)
+	})
+	act := activity.NewLog(1000)
 
 	s := &Server{
 		config:        cfg,
+		version:       version,
 		store:         st,
 		settingsStore: settingsStore,
 		appSettings:   appSettings,
-		vectorIdx:     vectorIdx,
+		engine:        eng,
 		embedder:      embedder,
 		indexer:       idx,
-		query:         qe,
+		query:         query.NewEngine(st, eng, embedder, act),
+		activity:      act,
+		startedAt:     time.Now(),
 	}
 
-	// Initialize watcher and restore watched folders
-	if err := s.initWatcherWithSettings(); err != nil {
-		fmt.Printf("Warning: failed to initialize watcher: %v\n", err)
-	}
+	s.rebuildIfOutOfSync()
 
+	if err := s.initWatcher(); err != nil {
+		log.Printf("failed to initialize watcher: %v", err)
+	}
 	return s, nil
 }
 
-// Start starts the server
+// rebuildIfOutOfSync repopulates the indexes from the store when they hold
+// fewer chunks than the database, e.g. on first start after an upgrade or
+// after the embedding dimension changed.
+func (s *Server) rebuildIfOutOfSync() {
+	chunks, _ := s.store.CountChunks()
+	if chunks == 0 || s.engine.Len() >= chunks {
+		return
+	}
+	log.Printf("search index has %d of %d chunks, rebuilding in background", s.engine.Len(), chunks)
+	go func() {
+		start := time.Now()
+		n, err := s.indexer.Rebuild(context.Background())
+		if err != nil {
+			log.Printf("index rebuild failed: %v", err)
+			return
+		}
+		log.Printf("index rebuilt: %d chunks in %s", n, time.Since(start).Round(time.Millisecond))
+	}()
+}
+
+// Start starts the server and blocks until SIGINT/SIGTERM.
 func (s *Server) Start() error {
-	// Setup HTTP handlers
-	handler := rest.NewHandler(s.store, s.settingsStore, s.indexer, s.query, s.watcher)
+	handler := rest.NewHandler(rest.Deps{
+		Store:     s.store,
+		Settings:  s.settingsStore,
+		Indexer:   s.indexer,
+		Query:     s.query,
+		Engine:    s.engine,
+		Embedder:  s.embedder,
+		Activity:  s.activity,
+		Watcher:   s.watcher,
+		Version:   s.version,
+		DataDir:   s.config.DataDir,
+		StartedAt: s.startedAt,
+		Addr:      s.config.GetAddress(),
+	})
 	router := rest.NewRouter(handler)
 
-	// Add MCP handler
-	mcpServer := mcp.NewServer(s.store, s.settingsStore, s.indexer, s.query)
+	mcpServer := mcp.NewServer(s.store, s.settingsStore, s.indexer, s.query, s.version)
 	router.(*chi.Mux).HandleFunc("/mcp", mcpServer.Handle)
 
-	// Create HTTP server
 	s.httpServer = &http.Server{
-		Addr:    s.config.GetAddress(),
-		Handler: router,
+		Addr:              s.config.GetAddress(),
+		Handler:           router,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	// Start server in goroutine
+	errc := make(chan error, 1)
 	go func() {
-		fmt.Printf("🚀 Lorag server starting on http://%s\n", s.config.GetAddress())
-		fmt.Printf("📚 API: http://%s/api/v1/\n", s.config.GetAddress())
-		fmt.Printf("🔌 MCP: http://%s/mcp\n", s.config.GetAddress())
+		addr := s.config.GetAddress()
+		fmt.Printf("Lorag %s (core %s)\n", s.version, s.engine.Stats().CoreVersion)
+		fmt.Printf("  Studio  http://%s\n", addr)
+		fmt.Printf("  REST    http://%s/api/v1\n", addr)
+		fmt.Printf("  MCP     http://%s/mcp\n", addr)
 		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("Server error: %v\n", err)
+			errc <- err
 		}
 	}()
 
-	// Wait for interrupt signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
+	select {
+	case <-quit:
+	case err := <-errc:
+		s.Shutdown(context.Background())
+		return err
+	}
 
-	fmt.Println("\nShutting down server...")
-
-	// Graceful shutdown
+	fmt.Println("\nShutting down...")
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
 	return s.Shutdown(ctx)
 }
 
 // Shutdown gracefully shuts down the server
 func (s *Server) Shutdown(ctx context.Context) error {
-	// Save vector index
-	if s.vectorIdx != nil {
-		fmt.Println("Saving vector index...")
-		vectorPath := s.config.VectorIndexPath()
-		if err := s.vectorIdx.Save(vectorPath); err != nil {
-			fmt.Printf("Warning: failed to save vector index: %v\n", err)
-		} else {
-			fmt.Println("✓ Vector index saved")
-		}
-	}
-
-	// Shutdown HTTP server
 	if s.httpServer != nil {
 		if err := s.httpServer.Shutdown(ctx); err != nil {
-			fmt.Printf("HTTP server shutdown error: %v\n", err)
+			log.Printf("HTTP server shutdown error: %v", err)
 		}
 	}
-
-	// Stop watcher
 	if s.watcher != nil {
 		if err := s.watcher.Stop(); err != nil {
-			fmt.Printf("Watcher stop error: %v\n", err)
+			log.Printf("watcher stop error: %v", err)
 		}
 	}
-
-	// Close store
+	if s.indexer != nil {
+		s.indexer.Stop()
+	}
+	if s.engine != nil {
+		if err := s.engine.Close(); err != nil {
+			log.Printf("search index close error: %v", err)
+		}
+	}
 	if s.store != nil {
 		if err := s.store.Close(); err != nil {
-			fmt.Printf("Store close error: %v\n", err)
+			log.Printf("store close error: %v", err)
 		}
 	}
-
-	fmt.Println("✓ Server stopped")
 	return nil
 }
 
-// initWatcherWithSettings initializes the file watcher with persisted watches
-func (s *Server) initWatcherWithSettings() error {
+// initWatcher starts the file watcher and restores persisted watches.
+func (s *Server) initWatcher() error {
 	w, err := watcher.NewWatcher(s.store, s.indexer)
 	if err != nil {
 		return err
 	}
-
 	if err := w.Start(context.Background()); err != nil {
 		return err
 	}
-
 	s.watcher = w
 
-	// Restore watched folders from settings
 	watches, err := s.settingsStore.GetWatches()
 	if err != nil {
-		fmt.Printf("Warning: failed to load watches: %v\n", err)
+		log.Printf("failed to load watches: %v", err)
 		return nil
 	}
-
 	for _, watch := range watches {
 		if _, err := w.AddWatch(watch.Path, watch.Recursive, watch.Patterns); err != nil {
-			fmt.Printf("Warning: failed to restore watch for %s: %v\n", watch.Path, err)
-		} else {
-			fmt.Printf("✓ Restored watch: %s\n", watch.Path)
+			log.Printf("failed to restore watch for %s: %v", watch.Path, err)
 		}
 	}
-
-	return nil
-}
-
-// GetStats returns server statistics
-func (s *Server) GetStats() map[string]interface{} {
-	return s.indexer.GetStats()
-}
-
-// GetSettingsStore returns the settings store
-func (s *Server) GetSettingsStore() *store.SettingsStore {
-	return s.settingsStore
-}
-
-// GetAppSettings returns the current app settings
-func (s *Server) GetAppSettings() *store.AppSettings {
-	return s.appSettings
-}
-
-// SaveAppSettings saves and applies new settings
-func (s *Server) SaveAppSettings(settings *store.AppSettings) error {
-	if err := s.settingsStore.SaveAppSettings(settings); err != nil {
-		return err
-	}
-	s.appSettings = settings
 	return nil
 }

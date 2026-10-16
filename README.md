@@ -23,10 +23,9 @@
 - 🤖 **Compatible MCP** - Fonctionne avec Claude, ChatGPT, VS Code, et plus
 - 📄 **Multi-format** - PDF, Word, Markdown, code source (20+ formats)
 - 🔄 **Indexation automatique** - Surveillance en temps réel de vos dossiers
-- ⏰ **Planification** - Indexation automatique programmée
 - 📝 **Templates de prompts** - Personnalisez les réponses de vos IA
 - ⚡ **Ultra rapide** - Recherche sémantique en < 50ms
-- 🌐 **UI Web moderne** - Interface React intuitive et accessible
+- 🧪 **Studio** - Explorer, playground avec décomposition du score, logs des agents
 
 ## 📦 Installation
 
@@ -85,25 +84,24 @@ Au premier démarrage, suivez l'assistant :
 
 ### 3. Commencer à utiliser
 
-- 🔍 **Recherchez** dans vos documents via l'onglet "Recherche"
-- 📁 **Ajoutez des dossiers** dans "Sources"
-- ⏰ **Planifiez** l'indexation automatique
-- 🤖 **Connectez vos IA** via l'endpoint MCP
+- 📁 **Ajoutez des dossiers** dans "Ingestion"
+- 🔍 **Testez vos requêtes** dans "Playground"
+- 🤖 **Connectez vos agents** depuis "Connect" (endpoint MCP)
+- 📈 **Suivez ce qu'ils demandent** dans "Agent logs"
 
 ## 📖 Utilisation
 
 ### Pour les utilisateurs non-techniques
 
-Lorag s'utilise principalement via son **interface web** :
+Lorag s'utilise via son **Studio**, servi par le démon sur `http://localhost:8080` (thème clair ou sombre, palette de commandes `⌘K`) :
 
-1. Ouvrez `http://localhost:8080` dans votre navigateur
-2. Utilisez le **Wizard** pour la configuration initiale
-3. Explorez les différentes sections :
-   - **Tableau de bord** - Statistiques et aperçu
-   - **Recherche** - Recherche sémantique naturelle
-   - **Sources** - Gestion des dossiers surveillés
-   - **Planification** - Tâches d'indexation automatiques
-   - **Templates** - Personnalisation des prompts
+- **Overview** - état du moteur et de l'embedder, volumes, dernières requêtes et indexations ; guide de démarrage quand l'index est vide
+- **Explorer** - documents → chunks, avec le texte exact de chaque chunk et sa présence dans l'index
+- **Playground** - une requête comme un agent la ferait : rang vectoriel, rang BM25 et score fusionné de chaque résultat, comparaison des trois routes, export en `curl` ou en appel MCP
+- **Agent logs** - chaque recherche servie, par client MCP : question, résultats renvoyés, latence, réponses vides
+- **Ingestion** - indexer un fichier ou un dossier, dossiers surveillés, file d'attente, erreurs
+- **Connect** - URL MCP, configuration par client, test de connexion, outils exposés
+- **Settings** - embeddings, paramètres de l'index VectixDB, découpage, médias, maintenance
 
 ### Pour les utilisateurs avancés (CLI)
 
@@ -164,10 +162,10 @@ curl -X POST http://localhost:8080/api/v1/search \
                            │
               ┌────────────┼────────────┐
               │            │            │
-        ┌─────▼────┐ ┌────▼────┐ ┌─────▼─────┐
-        │ BoltDB   │ │  HNSW   │ │  Parsers  │
-        │(Metadata)│ │(Vectors)│ │(PDF/DOCX) │
-        └──────────┘ └─────────┘ └───────────┘
+        ┌─────▼────┐ ┌────▼─────┐ ┌─────▼─────┐
+        │ BoltDB   │ │ VectixDB │ │  Parsers  │
+        │(Metadata)│ │ (Search) │ │(PDF/DOCX) │
+        └──────────┘ └──────────┘ └───────────┘
 ```
 
 ## 📚 Documentation
@@ -182,9 +180,9 @@ curl -X POST http://localhost:8080/api/v1/search \
 
 | Composant | Technologie |
 |-----------|-------------|
-| Backend | Go 1.22 |
+| Backend | Go 1.24 |
 | API | Chi Router + CORS |
-| Vector DB | HNSW (implémentation Go) |
+| Recherche | [VectixDB](../vectixdb) (Zig, lié par cgo) : HNSW, BM25, filtres, fusion hybride, WAL |
 | Metadata | BoltDB |
 | Frontend | React 18 + TypeScript |
 | UI | TailwindCSS |

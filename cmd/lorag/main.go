@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/lorag/lorag/internal/config"
 	"github.com/lorag/lorag/internal/server"
+	"github.com/spf13/cobra"
+	vectixdb "github.com/raucheacho/vectixdb/bindings/go"
 )
 
 var (
@@ -39,8 +40,8 @@ semantic search, all while keeping your data private and local.`,
 
 func serverCmd() *cobra.Command {
 	var (
-		host string
-		port int
+		host    string
+		port    int
 		dataDir string
 	)
 
@@ -64,10 +65,12 @@ func serverCmd() *cobra.Command {
 			}
 			if dataDir != "" {
 				cfg.DataDir = dataDir
+				if err := os.MkdirAll(dataDir, 0o755); err != nil {
+					return err
+				}
 			}
 
-			// Create and start server
-			srv, err := server.NewServer(cfg)
+			srv, err := server.NewServer(cfg, Version)
 			if err != nil {
 				return fmt.Errorf("failed to create server: %w", err)
 			}
@@ -88,7 +91,7 @@ func versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("Lorag %s (built %s)\n", Version, BuildTime)
+			fmt.Printf("Lorag %s (built %s, VectixDB %s)\n", Version, BuildTime, vectixdb.Version())
 		},
 	}
 }

@@ -1,47 +1,36 @@
 /** @type {import('tailwindcss').Config} */
+const token = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+
 export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
+  content: ['./index.html', './src/**/*.{ts,tsx}'],
+  darkMode: ['class', '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
-        // Drizzle-inspired dark theme
-        bg: {
-          DEFAULT: '#0f0f10',
-          secondary: '#18181b',
-          tertiary: '#27272a',
-        },
-        border: {
-          DEFAULT: '#27272a',
-          strong: '#3f3f46',
-        },
-        text: {
-          DEFAULT: '#fafafa',
-          secondary: '#a1a1aa',
-          tertiary: '#71717a',
-        },
-        accent: {
-          DEFAULT: '#10b981', // Emerald green
-          hover: '#059669',
-          muted: 'rgba(16, 185, 129, 0.1)',
-        },
-        status: {
-          success: '#22c55e',
-          warning: '#f59e0b',
-          error: '#ef4444',
-          info: '#3b82f6',
-        }
+        canvas: token('canvas'),
+        surface: token('surface'),
+        raised: token('raised'),
+        line: token('line'),
+        'line-strong': token('line-strong'),
+        fg: token('fg'),
+        muted: token('muted'),
+        faint: token('faint'),
+        accent: token('accent'),
+        'accent-fg': token('accent-fg'),
+        vector: token('vector'),
+        keyword: token('keyword'),
+        ok: token('ok'),
+        warn: token('warn'),
+        bad: token('bad'),
       },
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
       fontSize: {
-        '2xs': '0.625rem',
+        '2xs': ['0.6875rem', '1rem'],
       },
     },
   },
   plugins: [],
-}
+};

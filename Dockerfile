@@ -1,65 +1,51 @@
-# Build stage
-FROM golang:1.22-alpine AS builder
+# Build with the VectixDB checkout as a named context:
+#   docker build --build-context vectixdb=../vectixdb -t lorag .
 
-# Install build dependencies
-RUN apk add --no-cache git gcc g++ libc-dev
-
-WORKDIR /build
-
-# Copy go mod files
-COPY go.mod go.sum ./
-RUN go mod download
-
-# Copy source code
-COPY . .
-
-# Build binaries
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-w -s" -o bin/lorag ./cmd/lorag
-RUN CGO_ENABLED=1 GOOS=linux go build -ldflags="-w -s" -o bin/loragctl ./cmd/loragctl
-
-# UI build stage
-FROM node:20-alpine AS ui-builder
-
+# UI
+FROM node:20-alpine AS ui
 WORKDIR /ui
-COPY web/package*.json ./
+COPY ui/package*.json ./
 RUN npm ci
-
-COPY web/ ./
+COPY ui/ ./
 RUN npm run build
 
-# Final stage
-FROM alpine:latest
+# Engine and binaries
+FROM golang:1.24-bookworm AS builder
+ARG ZIG_VERSION=0.16.0
+RUN apt-get update && apt-get install -y --no-install-recommends xz-utils \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-$(uname -m)-linux-${ZIG_VERSION}.tar.xz" \
+       | tar -xJ -C /opt \
+    && ln -s "/opt/zig-$(uname -m)-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig
 
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates
+# go.mod points the binding at ../vectixdb/bindings/go.
+COPY --from=vectixdb . /src/vectixdb
+RUN cd /src/vectixdb && rm -rf zig-out .zig-cache bindings/go/lib && ./scripts/go-libs.sh
 
-WORKDIR /app
+WORKDIR /src/lorag
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+COPY --from=ui /ui/dist ./ui/dist
+ARG VERSION=dev
+RUN CGO_ENABLED=1 go build -ldflags="-s -w -X main.Version=${VERSION}" -o /out/lorag ./cmd/lorag \
+    && CGO_ENABLED=1 go build -ldflags="-s -w" -o /out/loragctl ./cmd/loragctl
 
-# Copy binaries from builder
-COPY --from=builder /build/bin/lorag /usr/local/bin/lorag
-COPY --from=builder /build/bin/loragctl /usr/local/bin/loragctl
+# Runtime
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates wget \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /data
+COPY --from=builder /out/lorag /out/loragctl /usr/local/bin/
 
-# Copy UI build
-COPY --from=ui-builder /ui/dist ./ui/dist
-
-# Create data directory
-RUN mkdir -p /data
-
-# Environment variables
-ENV LORAG_DATA_DIR=/data
-ENV LORAG_HOST=0.0.0.0
-ENV LORAG_PORT=8080
-
-# Expose port
+ENV LORAG_DATA_DIR=/data \
+    LORAG_HOST=0.0.0.0 \
+    LORAG_PORT=8080
 EXPOSE 8080
-
-# Volume for data
 VOLUME ["/data"]
 
-# Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
 
-# Run server
 ENTRYPOINT ["lorag"]
 CMD ["server"]

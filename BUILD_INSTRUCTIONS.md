@@ -3,10 +3,14 @@
 ## Prérequis
 
 ### Pour tous les systèmes
-- Go 1.22 ou supérieur
+- Go 1.24 ou supérieur
+- Zig 0.16 (pour compiler le moteur VectixDB)
+- Le dépôt VectixDB à côté de celui-ci (`../vectixdb`), ou ailleurs avec `make VECTIXDB=/chemin/vectixdb`
 - Node.js 18+ et npm
 - Git
 - CGO (inclus avec Go)
+
+Le moteur de recherche est la bibliothèque statique de VectixDB, liée dans le binaire par cgo. `make build-server`, `make test` et `make dev-server` la compilent la première fois ; `make engine` la recompile après une mise à jour de VectixDB. `go.mod` pointe le binding Go vers `../vectixdb/bindings/go` (directive `replace`).
 
 ### macOS spécifique
 - Xcode Command Line Tools: `xcode-select --install`
@@ -46,6 +50,9 @@ cd ..
 ### 2. Backend Go
 
 ```bash
+# Moteur VectixDB (une fois, puis après chaque mise à jour)
+make engine
+
 # Server
 go build -o bin/lorag ./cmd/lorag
 
@@ -78,7 +85,7 @@ Crée les binaires pour :
 
 ```bash
 # Build
-docker build -t lorag .
+docker build --build-context vectixdb=../vectixdb -t lorag .
 
 # Run
 docker run -p 8080:8080 -v $(pwd)/data:/data lorag

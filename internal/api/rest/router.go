@@ -3,6 +3,7 @@ package rest
 import (
 	"io/fs"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -11,55 +12,50 @@ import (
 	"github.com/lorag/lorag/ui"
 )
 
-// NewRouter creates a new HTTP router
+// NewRouter creates the HTTP router: REST API under /api/v1, the Studio
+// (embedded single-page app) everywhere else.
 func NewRouter(handler *Handler) http.Handler {
 	r := chi.NewRouter()
 
-	// Middleware
-	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Timeout(60 * time.Second))
-
-	// CORS
+	r.Use(middleware.Timeout(120 * time.Second))
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"*"},
-		ExposedHeaders:   []string{"*"},
-		AllowCredentials: true,
-		MaxAge:           300,
+		AllowedOrigins: []string{"http://localhost:*", "http://127.0.0.1:*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders: []string{"*"},
+		ExposedHeaders: []string{"Mcp-Session-Id"},
+		MaxAge:         300,
 	}))
 
-	// Health check
 	r.Get("/health", handler.Health)
 
-	// API v1 routes
 	r.Route("/api/v1", func(r chi.Router) {
-		// Stats
 		r.Get("/stats", handler.Stats)
+		r.Get("/overview", handler.Overview)
+		r.Get("/embedder", handler.EmbedderStatus)
 
-		// Search
 		r.Post("/search", handler.Search)
 
-		// Indexing
 		r.Route("/index", func(r chi.Router) {
 			r.Post("/file", handler.IndexFile)
 			r.Post("/directory", handler.IndexDirectory)
+			r.Post("/rebuild", handler.RebuildIndex)
+			r.Post("/compact", handler.CompactIndex)
+			r.Post("/save", handler.SaveIndex)
 		})
 
-		// Queue (async indexing)
+		r.Get("/ingestion", handler.Ingestion)
 		r.Route("/queue", func(r chi.Router) {
 			r.Get("/stats", handler.GetQueueStats)
 			r.Get("/tasks/{id}", handler.GetTaskStatus)
 		})
 
-		// Progress (SSE for real-time updates)
-		r.Get("/progress", handler.ProgressStream)
-		r.Get("/system", handler.SystemStats)
+		r.Route("/activity", func(r chi.Router) {
+			r.Get("/", handler.ListActivity)
+			r.Get("/{id}", handler.GetActivity)
+		})
 
-		// Documents
 		r.Route("/documents", func(r chi.Router) {
 			r.Get("/", handler.ListDocuments)
 			r.Post("/reindex-media", handler.ReindexMedia)
@@ -71,45 +67,45 @@ func NewRouter(handler *Handler) http.Handler {
 			})
 		})
 
-		// Watches
 		r.Route("/watches", func(r chi.Router) {
 			r.Get("/", handler.ListWatches)
 			r.Post("/", handler.AddWatch)
-			r.Route("/{id}", func(r chi.Router) {
-				r.Delete("/", handler.RemoveWatch)
-			})
+			r.Delete("/{id}", handler.RemoveWatch)
 		})
 
-		// Settings
 		r.Get("/settings", handler.GetSettings)
 		r.Put("/settings", handler.UpdateSettings)
 		r.Get("/models/status", handler.GetModelStatus)
-		r.Get("/watches/persisted", handler.GetWatches)
-		r.Put("/watches/persisted", handler.SaveWatches)
 	})
 
-	// Static files (UI) - serve embedded files
+	r.Get("/*", studioHandler())
+	return r
+}
+
+// studioHandler serves the embedded Studio, falling back to index.html for
+// client-side routes.
+func studioHandler() http.HandlerFunc {
 	staticFS, err := fs.Sub(ui.FS(), "dist")
 	if err != nil {
-		r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("UI Error"))
-		})
-	} else {
-		fileServer := http.FileServer(http.FS(staticFS))
-		r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
-			path := r.URL.Path
-			if path == "/" {
-				path = "/index.html"
-			}
-			
-			_, err := fs.Stat(staticFS, path[1:])
-			if err != nil {
-				r.URL.Path = "/"
-			}
-			
-			fileServer.ServeHTTP(w, r)
-		})
+		return func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "Studio not built: run `make ui`", http.StatusNotFound)
+		}
 	}
-
-	return r
+	files := http.FileServer(http.FS(staticFS))
+	return func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/")
+		if path == "" {
+			path = "index.html"
+		}
+		if _, err := fs.Stat(staticFS, path); err != nil {
+			if _, err := fs.Stat(staticFS, "index.html"); err != nil {
+				http.Error(w, "Studio not built: run `make ui`", http.StatusNotFound)
+				return
+			}
+			r.URL.Path = "/"
+		} else if strings.HasPrefix(path, "assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+		files.ServeHTTP(w, r)
+	}
 }
