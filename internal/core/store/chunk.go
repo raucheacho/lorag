@@ -19,6 +19,14 @@ type Chunk struct {
 	EndByte    int       `json:"end_byte"`
 	Tokens     int       `json:"tokens"`
 	CreatedAt  time.Time `json:"created_at"`
+
+	// Position in the source; zero values mean "not applicable".
+	Page      int    `json:"page,omitempty"`
+	LineStart int    `json:"line_start,omitempty"`
+	LineEnd   int    `json:"line_end,omitempty"`
+	StartMs   int64  `json:"start_ms,omitempty"`
+	EndMs     int64  `json:"end_ms,omitempty"`
+	Section   string `json:"section,omitempty"`
 }
 
 // NewChunk creates a new chunk

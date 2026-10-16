@@ -209,47 +209,44 @@ func (i *Indexer) indexFile(ctx context.Context, path string) (*store.Document, 
 		return existing, false, nil
 	}
 
-	content, err := i.parseFile(path)
+	segments, err := i.parserReg.Extract(path)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to parse file: %w", err)
 	}
-	texts := i.chunker.Chunk(content)
+	pieces := i.chunker.ChunkSegments(segments)
+	if len(pieces) == 0 {
+		return nil, false, fmt.Errorf("no text found in %s", filepath.Base(path))
+	}
 
 	currentCount, _ := i.store.CountChunks()
 	if existing != nil {
 		currentCount -= existing.ChunkCount
 	}
-	if currentCount+len(texts) > i.maxChunks {
+	if currentCount+len(pieces) > i.maxChunks {
 		return nil, false, fmt.Errorf("max chunks limit reached (%d)", i.maxChunks)
 	}
 
 	// Embed everything before touching the store, so that a failure (e.g. the
 	// embedding service being down) leaves the previous version intact.
-	doc := store.NewDocument(path, filepath.Base(path), strings.ToLower(filepath.Ext(path)), info.Size())
+	ext := strings.ToLower(filepath.Ext(path))
+	doc := store.NewDocument(path, filepath.Base(path), ext, info.Size())
 	doc.Checksum = checksum
-	chunks := make([]*store.Chunk, 0, len(texts))
-	searchFrom := 0
-	for idx, text := range texts {
+	doc.Kind = string(parsers.KindOf(ext))
+	chunks := make([]*store.Chunk, 0, len(pieces))
+	for idx, p := range pieces {
 		if err := ctx.Err(); err != nil {
 			return nil, false, err
 		}
-		startByte := strings.Index(content[searchFrom:], text)
-		if startByte < 0 {
-			startByte = strings.Index(content, text)
-		} else {
-			startByte += searchFrom
+		chunk := store.NewChunk(doc.ID, p.Text, idx, p.StartByte, p.EndByte)
+		chunk.Tokens = i.chunker.CountTokens(p.Text)
+		chunk.Page, chunk.LineStart, chunk.LineEnd = p.Page, p.LineStart, p.LineEnd
+		chunk.StartMs, chunk.EndMs, chunk.Section = p.StartMs, p.EndMs, p.Section
+		// The section (heading path, function) gives the chunk its context.
+		embedText := p.Text
+		if p.Section != "" && p.Section != "screen" {
+			embedText = p.Section + "\n\n" + p.Text
 		}
-		if startByte < 0 {
-			startByte = 0
-		}
-		searchFrom = startByte + 1
-		if searchFrom > len(content) {
-			searchFrom = len(content)
-		}
-
-		chunk := store.NewChunk(doc.ID, text, idx, startByte, startByte+len(text))
-		chunk.Tokens = i.chunker.CountTokens(text)
-		embedding, err := i.embedder.Embed(text)
+		embedding, err := i.embedder.Embed(embedText)
 		if err != nil {
 			return nil, false, fmt.Errorf("failed to embed chunk %d: %w", idx, err)
 		}
@@ -297,6 +294,10 @@ func (i *Indexer) indexFile(ctx context.Context, path string) (*store.Document, 
 
 // indexEntry is what the search index keeps of a chunk.
 func indexEntry(doc *store.Document, c *store.Chunk) engine.Chunk {
+	kind := doc.Kind
+	if kind == "" {
+		kind = string(parsers.KindOf(doc.Extension))
+	}
 	return engine.Chunk{
 		ID:         c.ID,
 		DocumentID: c.DocumentID,
@@ -307,6 +308,13 @@ func indexEntry(doc *store.Document, c *store.Chunk) engine.Chunk {
 		Position:   c.Position,
 		StartByte:  c.StartByte,
 		EndByte:    c.EndByte,
+		Kind:       kind,
+		Page:       c.Page,
+		LineStart:  c.LineStart,
+		LineEnd:    c.LineEnd,
+		StartMs:    c.StartMs,
+		EndMs:      c.EndMs,
+		Section:    c.Section,
 		Vector:     c.Embedding,
 	}
 }
@@ -499,40 +507,6 @@ func (i *Indexer) GetStats() map[string]interface{} {
 	}
 }
 
-// parseFile parses a file and extracts text
-func (i *Indexer) parseFile(path string) (string, error) {
-	parser, err := i.parserReg.GetParserForPath(path)
-	if err != nil {
-		// Try to read as text anyway
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return "", err
-		}
-		return string(data), nil
-	}
-	
-	// Check if it's a FileParser (PDF, DOCX) or regular Parser
-	switch p := parser.(type) {
-	case parsers.FileParser:
-		// File parsers need the path
-		return p.ParseFile(path)
-	case parsers.Parser:
-		// Regular parsers need a reader
-		file, err := os.Open(path)
-		if err != nil {
-			return "", err
-		}
-		defer file.Close()
-		return p.Parse(file)
-	default:
-		// Fallback: read as text
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return "", err
-		}
-		return string(data), nil
-	}
-}
 
 // calculateChecksum calculates file checksum
 func (i *Indexer) calculateChecksum(path string) (string, error) {
@@ -552,8 +526,7 @@ func (i *Indexer) calculateChecksum(path string) (string, error) {
 
 // isSupportedFile checks if a file type is supported
 func (i *Indexer) isSupportedFile(path string) bool {
-	_, err := i.parserReg.GetParserForPath(path)
-	return err == nil
+	return parsers.KindOf(filepath.Ext(path)) != ""
 }
 
 // IndexResult holds the result of indexing

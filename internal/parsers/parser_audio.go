@@ -1,6 +1,7 @@
 package parsers
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -21,7 +22,7 @@ func NewAudioParser() *AudioParser {
 	// Default data directory in user's home
 	homeDir, _ := os.UserHomeDir()
 	dataDir := filepath.Join(homeDir, ".lorag")
-	
+
 	return NewAudioParserWithConfig(dataDir, WhisperTiny)
 }
 
@@ -173,4 +174,76 @@ func (p *AudioParser) Supports(ext string) bool {
 // GetModelManager returns the model manager for configuration
 func (p *AudioParser) GetModelManager() *WhisperModelManager {
 	return p.modelManager
+}
+
+// Segments transcribes the file into timed segments (whisper.cpp JSON
+// output, one segment per stretch of speech).
+func (p *AudioParser) Segments(path string) ([]Segment, error) {
+	whisperPath, err := p.modelManager.GetWhisperCppPath()
+	if err != nil {
+		return nil, err
+	}
+	modelPath, err := p.modelManager.GetModelPath(p.model)
+	if err != nil {
+		return nil, fmt.Errorf("WHISPER_MODEL_ERROR: %w", err)
+	}
+	wavPath, err := p.ensureWav(path)
+	if err != nil {
+		return nil, err
+	}
+	if wavPath != path {
+		defer os.Remove(wavPath)
+	}
+	dir, err := os.MkdirTemp("", "lorag_whisper_*")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+	prefix := filepath.Join(dir, "out")
+	cmd := exec.Command(whisperPath, "-m", modelPath, "-f", wavPath, "-l", "auto", "-oj", "-of", prefix, "-np")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("WHISPER_TRANSCRIPTION_FAILED: %w: %s", err, lastLine(out))
+	}
+	data, err := os.ReadFile(prefix + ".json")
+	if err != nil {
+		return nil, fmt.Errorf("WHISPER_TRANSCRIPTION_FAILED: no JSON output: %w", err)
+	}
+	return parseWhisperJSON(data)
+}
+
+// parseWhisperJSON reads whisper.cpp's --output-json format.
+func parseWhisperJSON(data []byte) ([]Segment, error) {
+	var out struct {
+		Transcription []struct {
+			Offsets struct {
+				From int64 `json:"from"`
+				To   int64 `json:"to"`
+			} `json:"offsets"`
+			Text string `json:"text"`
+		} `json:"transcription"`
+	}
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("WHISPER_TRANSCRIPTION_FAILED: bad JSON: %w", err)
+	}
+	segs := make([]Segment, 0, len(out.Transcription))
+	for _, t := range out.Transcription {
+		text := strings.TrimSpace(t.Text)
+		if text == "" || text == "[BLANK_AUDIO]" {
+			continue
+		}
+		end := t.Offsets.To
+		if end <= t.Offsets.From {
+			end = t.Offsets.From + 1
+		}
+		segs = append(segs, Segment{Text: text, StartMs: t.Offsets.From, EndMs: end, Offset: -1})
+	}
+	if len(segs) == 0 {
+		return nil, fmt.Errorf("NO_SPEECH: no speech found in the audio")
+	}
+	return segs, nil
+}
+
+func lastLine(b []byte) string {
+	lines := strings.Split(strings.TrimSpace(string(b)), "\n")
+	return lines[len(lines)-1]
 }

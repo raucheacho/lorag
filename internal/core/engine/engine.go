@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"unicode/utf8"
 
 	vtx "github.com/raucheacho/vectixdb/bindings/go"
 )
@@ -28,6 +29,10 @@ const (
 
 	// Chunks per write during a rebuild.
 	rebuildBatch = 512
+
+	// schemaVersion changes when the chunk fields change: a new version
+	// starts a new generation, rebuilt from the document store.
+	schemaVersion = 2
 )
 
 // Config describes the index to open or create.
@@ -46,8 +51,8 @@ type Config struct {
 // fingerprint lists every parameter baked into a collection; a change
 // requires a new generation.
 func (c Config) fingerprint() string {
-	return fmt.Sprintf("dim=%d metric=%s int8=%t m=%d efc=%d k1=%g b=%g",
-		c.Dim, c.Metric, c.Quantized, c.M, c.EfConstruction, c.BM25K1, c.BM25B)
+	return fmt.Sprintf("schema=%d dim=%d metric=%s int8=%t m=%d efc=%d k1=%g b=%g",
+		schemaVersion, c.Dim, c.Metric, c.Quantized, c.M, c.EfConstruction, c.BM25K1, c.BM25B)
 }
 
 func parseMetric(s string) vtx.Metric {
@@ -84,6 +89,13 @@ type Chunk struct {
 	Position   int
 	StartByte  int
 	EndByte    int
+	Kind       string
+	Page       int
+	LineStart  int
+	LineEnd    int
+	StartMs    int64
+	EndMs      int64
+	Section    string
 	Vector     []float32
 }
 
@@ -97,6 +109,13 @@ const (
 	FieldPosition   = "position"
 	FieldStartByte  = "start_byte"
 	FieldEndByte    = "end_byte"
+	FieldKind       = "kind"
+	FieldPage       = "page"
+	FieldLineStart  = "line_start"
+	FieldLineEnd    = "line_end"
+	FieldStartMs    = "start_ms"
+	FieldEndMs      = "end_ms"
+	FieldSection    = "section"
 )
 
 func (c Config) schema() vtx.Schema {
@@ -117,6 +136,13 @@ func (c Config) schema() vtx.Schema {
 			{Name: FieldPosition, Type: vtx.TypeInt},
 			{Name: FieldStartByte, Type: vtx.TypeInt},
 			{Name: FieldEndByte, Type: vtx.TypeInt},
+			{Name: FieldKind, Type: vtx.TypeKeyword},
+			{Name: FieldPage, Type: vtx.TypeInt},
+			{Name: FieldLineStart, Type: vtx.TypeInt},
+			{Name: FieldLineEnd, Type: vtx.TypeInt},
+			{Name: FieldStartMs, Type: vtx.TypeInt},
+			{Name: FieldEndMs, Type: vtx.TypeInt},
+			{Name: FieldSection, Type: vtx.TypeKeyword},
 		},
 		BM25K1: c.BM25K1,
 		BM25B:  c.BM25B,
@@ -136,8 +162,26 @@ func (c Chunk) doc() vtx.Doc {
 			FieldPosition:   vtx.Int(c.Position),
 			FieldStartByte:  vtx.Int(c.StartByte),
 			FieldEndByte:    vtx.Int(c.EndByte),
+			FieldKind:       vtx.Keyword(c.Kind),
+			FieldPage:       vtx.Int(c.Page),
+			FieldLineStart:  vtx.Int(c.LineStart),
+			FieldLineEnd:    vtx.Int(c.LineEnd),
+			FieldStartMs:    vtx.Int(c.StartMs),
+			FieldEndMs:      vtx.Int(c.EndMs),
+			FieldSection:    vtx.Keyword(truncate(c.Section, 200)),
 		},
 	}
+}
+
+// truncate cuts s to at most n bytes without splitting a UTF-8 sequence.
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n]
 }
 
 func chunkOf(r *vtx.Result) Chunk {
@@ -166,11 +210,19 @@ func chunkOf(r *vtx.Result) Chunk {
 		Position:   num(FieldPosition),
 		StartByte:  num(FieldStartByte),
 		EndByte:    num(FieldEndByte),
+		Kind:       str(FieldKind),
+		Page:       num(FieldPage),
+		LineStart:  num(FieldLineStart),
+		LineEnd:    num(FieldLineEnd),
+		StartMs:    int64(num(FieldStartMs)),
+		EndMs:      int64(num(FieldEndMs)),
+		Section:    str(FieldSection),
 	}
 }
 
 var returnFields = []string{FieldContent, FieldDocumentID, FieldPath, FieldFilename,
-	FieldExtension, FieldPosition, FieldStartByte, FieldEndByte}
+	FieldExtension, FieldPosition, FieldStartByte, FieldEndByte, FieldKind, FieldPage,
+	FieldLineStart, FieldLineEnd, FieldStartMs, FieldEndMs, FieldSection}
 
 // Stats describes the index.
 type Stats struct {
@@ -385,6 +437,9 @@ func (e *Engine) Replace(remove []string, put []Chunk) error {
 type Request struct {
 	Vector []float32
 	Text   string
+	// Exact keeps only chunks whose text contains this literal string
+	// (case-sensitive); alone, it lists them in index order.
+	Exact  string
 	Filter *vtx.Filter
 	K      int
 	// Candidates taken from each route before fusion (0: engine default).
@@ -409,6 +464,7 @@ func (e *Engine) Search(r Request) ([]Hit, error) {
 	q := vtx.Query{
 		Vector:       r.Vector,
 		Text:         r.Text,
+		Exact:        r.Exact,
 		TextFields:   []string{FieldContent},
 		Filter:       r.Filter,
 		K:            uint32(r.K),
@@ -576,6 +632,15 @@ func (e *Engine) Rebuild(source func(yield func(Chunk) error) error) error {
 	}
 	return e.db.Checkpoint()
 }
+
+// DB returns the underlying database, for other collections that live next
+// to the chunks (the problem-solution memory). Collections named chunks_*
+// and lorag_meta belong to the engine.
+func (e *Engine) DB() *vtx.DB { return e.db }
+
+// MetaCollection holds small pointer documents (active generation and the
+// configuration it was built with), keyed by the subsystem name.
+const MetaCollection = metaCollection
 
 // Close makes every write durable and releases the database.
 func (e *Engine) Close() error { return e.db.Close() }

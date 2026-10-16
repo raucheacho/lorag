@@ -27,6 +27,7 @@ type FileParser interface {
 type Registry struct {
 	parsers     []Parser
 	fileParsers []FileParser
+	cfg         ParserConfig
 }
 
 // ParserConfig holds configuration for parsers
@@ -54,6 +55,7 @@ func NewRegistry() *Registry {
 // NewRegistryWithConfig creates a new parser registry with custom config
 func NewRegistryWithConfig(cfg ParserConfig) *Registry {
 	return &Registry{
+		cfg: cfg,
 		parsers: []Parser{
 			&TextParser{},
 			&MarkdownParser{},

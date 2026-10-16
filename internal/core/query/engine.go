@@ -22,6 +22,9 @@ const (
 	ModeHybrid  Mode = "hybrid"
 	ModeVector  Mode = "vector"
 	ModeKeyword Mode = "keyword"
+	// ModeExact keeps chunks containing the query verbatim; it is the only
+	// exhaustive route, for error messages and identifiers.
+	ModeExact Mode = "exact"
 )
 
 // ParseMode defaults to hybrid.
@@ -31,6 +34,8 @@ func ParseMode(s string) Mode {
 		return ModeVector
 	case ModeKeyword, "bm25", "text":
 		return ModeKeyword
+	case ModeExact, "literal", "grep":
+		return ModeExact
 	default:
 		return ModeHybrid
 	}
@@ -71,6 +76,41 @@ type Source struct {
 	Position  int    `json:"position"`
 	StartByte int    `json:"start_byte"`
 	EndByte   int    `json:"end_byte"`
+	Kind      string `json:"kind,omitempty"`
+	Page      int    `json:"page,omitempty"`
+	LineStart int    `json:"line_start,omitempty"`
+	LineEnd   int    `json:"line_end,omitempty"`
+	StartMs   int64  `json:"start_ms,omitempty"`
+	EndMs     int64  `json:"end_ms,omitempty"`
+	Section   string `json:"section,omitempty"`
+}
+
+// Location is the place in the source, for people and agents: "p. 12",
+// "L40-58", "03:12-03:45", or "" when the source has none.
+func (s *Source) Location() string {
+	switch {
+	case s.EndMs > 0:
+		return clock(s.StartMs) + "-" + clock(s.EndMs)
+	case s.Page > 0 && s.Kind == "slides":
+		return fmt.Sprintf("slide %d", s.Page)
+	case s.Page > 0 && s.Kind == "sheet":
+		return strings.TrimPrefix(s.Section, "Sheet ")
+	case s.Page > 0:
+		return fmt.Sprintf("p. %d", s.Page)
+	case s.LineStart > 0 && s.LineEnd > s.LineStart:
+		return fmt.Sprintf("L%d-%d", s.LineStart, s.LineEnd)
+	case s.LineStart > 0:
+		return fmt.Sprintf("L%d", s.LineStart)
+	}
+	return ""
+}
+
+func clock(ms int64) string {
+	sec := ms / 1000
+	if sec >= 3600 {
+		return fmt.Sprintf("%d:%02d:%02d", sec/3600, sec/60%60, sec%60)
+	}
+	return fmt.Sprintf("%02d:%02d", sec/60, sec%60)
 }
 
 // Query represents a search query
@@ -168,7 +208,10 @@ func (e *Engine) run(ctx context.Context, q Query) (*Response, error) {
 		req.K = min(q.TopK*4, 800)
 	}
 
-	if mode != ModeKeyword {
+	if mode == ModeExact {
+		req.Exact = q.Text
+	}
+	if mode != ModeKeyword && mode != ModeExact {
 		t := time.Now()
 		vec, err := e.embedder.Embed(q.Text)
 		resp.Timings.Embed = ms(time.Since(t))
@@ -182,7 +225,7 @@ func (e *Engine) run(ctx context.Context, q Query) (*Response, error) {
 			resp.Mode = ModeKeyword
 		}
 	}
-	if resp.Mode != ModeVector {
+	if resp.Mode != ModeVector && resp.Mode != ModeExact {
 		req.Text = q.Text
 	}
 
@@ -239,6 +282,13 @@ func (e *Engine) result(mode Mode, h engine.Hit) Result {
 			Position:  h.Position,
 			StartByte: h.StartByte,
 			EndByte:   h.EndByte,
+			Kind:      h.Kind,
+			Page:      h.Page,
+			LineStart: h.LineStart,
+			LineEnd:   h.LineEnd,
+			StartMs:   h.StartMs,
+			EndMs:     h.EndMs,
+			Section:   h.Section,
 		},
 	}
 	if h.VectorRank > 0 {
@@ -259,6 +309,8 @@ func (e *Engine) result(mode Mode, h engine.Hit) Result {
 		r.Score = float32(s / (2 / float64(rrfK+1)))
 	case ModeVector:
 		r.Score = r.Vector.Score
+	case ModeExact:
+		r.Score = 1 // every match contains the text verbatim
 	default:
 		r.Score = r.Keyword.Score
 	}
@@ -272,6 +324,7 @@ var nativeFields = map[string]string{
 	"filename":    engine.FieldFilename,
 	"extension":   engine.FieldExtension,
 	"document_id": engine.FieldDocumentID,
+	"kind":        engine.FieldKind,
 }
 
 // splitFilters returns the engine filter for what it can evaluate and the

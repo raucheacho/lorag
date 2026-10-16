@@ -5,6 +5,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -99,11 +102,11 @@ func (p *VideoParser) ParseFile(path string) (string, error) {
 func (p *VideoParser) extractAudio(videoPath, audioPath string) error {
 	cmd := exec.Command("ffmpeg",
 		"-i", videoPath,
-		"-vn",                   // No video
-		"-acodec", "pcm_s16le",  // PCM 16-bit little-endian
-		"-ar", "16000",          // 16kHz sample rate (whisper optimal)
-		"-ac", "1",              // Mono
-		"-y",                    // Overwrite output
+		"-vn",                  // No video
+		"-acodec", "pcm_s16le", // PCM 16-bit little-endian
+		"-ar", "16000", // 16kHz sample rate (whisper optimal)
+		"-ac", "1", // Mono
+		"-y", // Overwrite output
 		audioPath,
 	)
 
@@ -157,4 +160,71 @@ func (p *VideoParser) Supports(ext string) bool {
 // GetModelManager returns the model manager for configuration
 func (p *VideoParser) GetModelManager() *WhisperModelManager {
 	return p.audioParser.GetModelManager()
+}
+
+// maxKeyframes bounds the frames read on screen per video.
+const maxKeyframes = 60
+
+// Segments returns the timed transcription of the audio track, merged in
+// time order with the text read on screen at scene changes.
+func (p *VideoParser) Segments(path string) ([]Segment, error) {
+	if err := p.checkFFmpeg(); err != nil {
+		return nil, err
+	}
+	dir, err := os.MkdirTemp("", "lorag_video_*")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(dir)
+
+	var segs []Segment
+	audioPath := filepath.Join(dir, "audio.wav")
+	speechErr := p.extractAudio(path, audioPath)
+	if speechErr == nil {
+		if info, err := os.Stat(audioPath); err == nil && info.Size() > 44 {
+			var s []Segment
+			s, speechErr = p.audioParser.Segments(audioPath)
+			segs = append(segs, s...)
+		}
+	}
+	segs = append(segs, keyframeText(path, dir)...)
+	if len(segs) == 0 {
+		if speechErr != nil {
+			return nil, speechErr
+		}
+		return nil, fmt.Errorf("NO_VIDEO_TEXT: no speech and no text on screen")
+	}
+	sort.SliceStable(segs, func(i, j int) bool { return segs[i].StartMs < segs[j].StartMs })
+	return segs, nil
+}
+
+var ptsTime = regexp.MustCompile(`pts_time:([0-9.]+)`)
+
+// keyframeText grabs a frame at each scene change (and the first one) and
+// reads its text with tesseract. Frames without readable text are dropped.
+func keyframeText(path, dir string) []Segment {
+	if _, err := exec.LookPath("tesseract"); err != nil {
+		return nil
+	}
+	cmd := exec.Command("ffmpeg", "-hide_banner", "-i", path,
+		"-vf", "select='eq(n\\,0)+gt(scene\\,0.3)',showinfo,scale='min(1600,iw)':-2",
+		"-vsync", "vfr", "-frames:v", strconv.Itoa(maxKeyframes),
+		filepath.Join(dir, "frame_%03d.png"), "-y")
+	out, _ := cmd.CombinedOutput()
+	times := ptsTime.FindAllStringSubmatch(string(out), -1)
+
+	var segs []Segment
+	seen := map[string]bool{}
+	for i, m := range times {
+		frame := filepath.Join(dir, fmt.Sprintf("frame_%03d.png", i+1))
+		text := ocr(frame)
+		if text == "" || seen[text] {
+			continue
+		}
+		seen[text] = true
+		sec, _ := strconv.ParseFloat(m[1], 64)
+		ms := int64(sec * 1000)
+		segs = append(segs, Segment{Text: "On screen: " + text, StartMs: ms, EndMs: ms + 1, Offset: -1, Section: "screen"})
+	}
+	return segs
 }

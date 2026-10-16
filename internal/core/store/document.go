@@ -24,6 +24,7 @@ type Document struct {
 	IndexedAt   *time.Time        `json:"indexed_at,omitempty"`
 	ChunkCount  int               `json:"chunk_count"`
 	Tags        []string          `json:"tags"`
+	Kind        string            `json:"kind,omitempty"` // text, markdown, code, pdf, office, sheet, slides, audio, video, image
 	IsDeleted   bool              `json:"is_deleted"`
 }
 
