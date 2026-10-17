@@ -3,8 +3,8 @@
 #   scripts/dist.sh 0.1.0 darwin_arm64 linux_amd64 ...
 # writes dist/lorag_<version>_<os>_<arch>.tar.gz for each platform.
 #
-# lorag links the VectixDB static library through cgo, so each platform needs
-# a C toolchain for it:
+# lorag links the VectixDB static library (prebuilt, in the Go module) through
+# cgo, so each platform needs a C toolchain for it:
 #   darwin_*  Apple clang, on macOS only (the Go runtime links Apple frameworks)
 #   linux_*   zig cc, from any host, against glibc 2.28 (Debian 10, Ubuntu 20.04,
 #             RHEL 8 and later)
@@ -15,7 +15,6 @@ cd "$(dirname "$0")/.."
 [ $# -ge 2 ] || { echo "usage: $0 <version> <goos_goarch>..." >&2; exit 2; }
 version=${1#v}
 shift
-VECTIXDB=${VECTIXDB:-../vectixdb}
 [ -f ui/dist/index.html ] || { echo "ui/dist is missing: run (cd ui && npm ci && npm run build)" >&2; exit 1; }
 
 commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
@@ -38,8 +37,6 @@ for platform in "$@"; do
         exit 1
     fi
 
-    "$VECTIXDB/scripts/go-libs.sh" "$platform" >/dev/null
-
     name="lorag_${version}_${platform}"
     out="dist/$name"
     rm -rf "$out"
@@ -53,8 +50,8 @@ for platform in "$@"; do
     # Lorag is MIT; the VectixDB engine linked into it is Apache-2.0, whose
     # license and notice must ship with the binary.
     cp LICENSE README.md "$out/"
-    cp "$VECTIXDB/LICENSE" "$out/LICENSE.vectixdb"
-    cp "$VECTIXDB/NOTICE" "$out/NOTICE.vectixdb"
+    cp third_party/vectixdb/LICENSE "$out/LICENSE.vectixdb"
+    cp third_party/vectixdb/NOTICE "$out/NOTICE.vectixdb"
 
     # No macOS extended attributes: GNU tar warns about each one.
     xattrs=

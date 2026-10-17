@@ -79,7 +79,7 @@ Le nom du modèle fait maintenant partie de l'empreinte de l'index et de celle d
 ## À faire
 
 ### Bloquant pour la CI et les releases
-1. **CI de Lorag.** Créer le secret `VECTIXDB_TOKEN` dans le dépôt Lorag : un token en lecture seule sur `raucheacho/vectixdb`, ou une clé de déploiement.
+1. **CI de Lorag.** Créer le secret `VECTIXDB_TOKEN` dans le dépôt Lorag : un token fine-grained avec l'accès *Contents: read* sur `raucheacho/vectixdb`. Il sert à télécharger le module Go privé (go et Docker) ; une clé de déploiement SSH ne convient plus.
 2. **Première release.** Le workflow est prêt (`release.yml`, `scripts/dist.sh`) mais n'a pas encore tourné sur GitHub ; les archives ont été construites et vérifiées en local (macOS arm64 et Intel, Linux amd64 et arm64 sur Debian 10 et Ubuntu 20.04). Il manque :
    - décider si Lorag devient public, ou si les binaires vont dans un dépôt public séparé : Homebrew et `install.sh` ne savent pas télécharger depuis un dépôt privé ;
    - créer le dépôt du tap Homebrew (`raucheacho/homebrew-tap`) ;
@@ -100,9 +100,8 @@ Le nom du modèle fait maintenant partie de l'empreinte de l'index et de celle d
 8. **Primitives de la phase 2** dans le moteur : modulation du score par un champ ou par le temps, diversité MMR, budget de tokens, validité par plage de versions. Lorag les fait aujourd'hui de son côté.
 9. **Racinisation optionnelle** par champ texte.
 10. **Windows.** Le moteur ne compile pas pour Windows (`src/fs.zig` suppose des descripteurs de fichier entiers ; la CLI utilise `getrusage`). La correction de compilation est petite ; le travail est de valider la résistance aux plantages (remplacement atomique, synchronisation du dossier, verrou) sur un runner Windows.
-11. **Première release de VectixDB.** La distribution est prête (archives C, module Go avec bibliothèques précompilées, workflow `release.yml`) ; il reste à pousser le tag `v0.1.0`. Ensuite, Lorag pourra dépendre de cette version au lieu des `replace` vers `../vectixdb` : plus besoin de Zig ni du dépôt voisin pour compiler, en local comme en CI et dans Docker.
-12. **Reste de la feuille de route** dans `vectixdb/docs/DEVELOPMENT.md` : mmap, group commit, vecteurs épars, fuzzing, binding Python.
+11. **Reste de la feuille de route** dans `vectixdb/docs/DEVELOPMENT.md` : mmap, group commit, vecteurs épars, fuzzing, binding Python.
 
 ### Fiche technique
-13. **Phase 5 : plusieurs appareils.** Le journal de VectixDB et celui de la mémoire sont la base de la réplication.
-14. **Sécurité.** Chiffrement au repos, avec la clé dans le trousseau du système : prévu par la fiche, pas fait.
+12. **Phase 5 : plusieurs appareils.** Le journal de VectixDB et celui de la mémoire sont la base de la réplication.
+13. **Sécurité.** Chiffrement au repos, avec la clé dans le trousseau du système : prévu par la fiche, pas fait.
