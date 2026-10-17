@@ -1,4 +1,4 @@
-.PHONY: all build build-cli build-server build-ui engine test clean install dev-ui dev-server dist
+.PHONY: all build build-cli build-server build-ui test clean install dev-ui dev-server dist
 
 # Variables
 BINARY_NAME=lorag
@@ -7,10 +7,7 @@ VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 
-# VectixDB checkout (search engine, linked through cgo)
-VECTIXDB ?= ../vectixdb
 HOST_PLATFORM=$(shell go env GOOS)_$(shell go env GOARCH)
-ENGINE_LIB=$(VECTIXDB)/bindings/go/lib/$(HOST_PLATFORM)/libvectixdb.a
 
 # Directories
 BUILD_DIR=bin
@@ -32,29 +29,22 @@ build-ui:
 	@cp -r $(WEB_DIR)/dist/* $(UI_DIR)/dist/ 2>/dev/null || true
 	@echo "✓ UI built"
 
-# Build the VectixDB static library for the host (needs zig 0.16)
-engine:
-	$(VECTIXDB)/scripts/go-libs.sh
-
-$(ENGINE_LIB):
-	$(VECTIXDB)/scripts/go-libs.sh
-
 # Build the server binary
-build-server: $(ENGINE_LIB)
+build-server:
 	@echo "Building server..."
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/lorag
 	@echo "✓ Server built: $(BUILD_DIR)/$(BINARY_NAME)"
 
 # Build the CLI binary
-build-cli: $(ENGINE_LIB)
+build-cli:
 	@echo "Building CLI..."
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(CLI_NAME) ./cmd/loragctl
 	@echo "✓ CLI built: $(BUILD_DIR)/$(CLI_NAME)"
 
 # Development mode - run server with hot reload
-dev-server: $(ENGINE_LIB)
+dev-server:
 	go run ./cmd/lorag server
 
 # Development mode - run UI
@@ -62,7 +52,7 @@ dev-ui:
 	cd $(WEB_DIR) && npm run dev
 
 # Run tests
-test: $(ENGINE_LIB)
+test:
 	@echo "Running tests..."
 	go test -v ./...
 
@@ -93,9 +83,10 @@ run: build-server
 	@echo "Starting Lorag server..."
 	./$(BUILD_DIR)/$(BINARY_NAME) server
 
-# Docker build
+# Docker build: GITHUB_TOKEN reads the private VectixDB module,
+# e.g. GITHUB_TOKEN=$$(gh auth token) make docker-build
 docker-build:
-	docker build --build-context vectixdb=$(VECTIXDB) -t lorag:$(VERSION) .
+	docker build --secret id=github_token,env=GITHUB_TOKEN -t lorag:$(VERSION) .
 
 # Docker run
 docker-run:
@@ -105,7 +96,7 @@ docker-run:
 # e.g. make dist PLATFORMS="darwin_arm64 darwin_amd64 linux_amd64 linux_arm64"
 PLATFORMS ?= $(HOST_PLATFORM)
 dist: build-ui
-	VECTIXDB=$(VECTIXDB) ./scripts/dist.sh $(VERSION) $(PLATFORMS)
+	./scripts/dist.sh $(VERSION) $(PLATFORMS)
 
 # Install locally
 install-local: build
@@ -134,7 +125,6 @@ help:
 	@echo "  make build-ui     - Build the React UI"
 	@echo "  make build-server - Build the server binary"
 	@echo "  make build-cli    - Build the CLI binary"
-	@echo "  make engine       - Rebuild the VectixDB library (VECTIXDB=../vectixdb)"
 	@echo "  make dev-server   - Run server in development mode"
 	@echo "  make dev-ui       - Run UI in development mode"
 	@echo "  make test         - Run all tests"

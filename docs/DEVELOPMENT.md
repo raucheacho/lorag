@@ -4,29 +4,30 @@ Read [ARCHITECTURE.md](ARCHITECTURE.md) first, and [STATUS.md](STATUS.md) for wh
 
 ## Setup
 
-```
-projects/
-  lorag/       this repository
-  vectixdb/    github.com/raucheacho/vectixdb (private), next to it
-```
-
 | Tool | Version | For |
 | --- | --- | --- |
 | Go | 1.24+ | the daemon and the CLI |
-| Zig | 0.16.0 exactly | building the VectixDB library |
+| Zig | 0.16.0 | only for the Linux release archives (`zig cc`) |
 | Node.js | 20 | the Studio |
 | Ollama | any | embeddings (`ollama pull bge-m3`) and image description |
 | poppler (`pdftotext`), ffmpeg, whisper-cpp, tesseract | optional | PDF pages, audio and video, OCR ([MEDIA_INDEXING.md](MEDIA_INDEXING.md)) |
 
 ```sh
-git clone https://github.com/raucheacho/vectixdb ../vectixdb
-make engine                      # ../vectixdb/scripts/go-libs.sh: libvectixdb.a for the host
+go env -w GOPRIVATE='github.com/raucheacho/*'   # VectixDB is a private module
+gh auth setup-git                               # or an SSH key: git must read raucheacho/vectixdb
 (cd ui && npm ci && npm run build)
 make build-server                # bin/lorag
 ./bin/lorag server -d ./data     # Studio on http://localhost:8080
 ```
 
-`go.mod` points the binding and its per-platform library modules (`bindings/go/lib/<platform>`) at the checkout with `replace` directives. Use `make VECTIXDB=/elsewhere ...` for another location. Once VectixDB publishes a release, Lorag can require that version instead: the module then carries the prebuilt libraries and the build needs no Zig.
+`go.mod` requires a released VectixDB binding (`v0.1.0`). Its per-platform modules (`bindings/go/lib/<platform>`) carry the prebuilt static libraries, so building needs no Zig and no VectixDB checkout. To upgrade: `go get github.com/raucheacho/vectixdb/bindings/go@v<version>`.
+
+To try an unreleased VectixDB, build its library and use a `go.work` (ignored by git):
+
+```sh
+../vectixdb/scripts/go-libs.sh
+go work init . ../vectixdb/bindings/go ../vectixdb/bindings/go/lib/darwin_arm64
+```
 
 ## Everyday commands
 
@@ -34,12 +35,11 @@ make build-server                # bin/lorag
 | --- | --- |
 | `make dev-server` | `go run ./cmd/lorag server` (needs `ui/dist`, even empty) |
 | `make dev-ui` | Vite on http://localhost:5173 with hot reload, proxying `/api` to :8080 |
-| `make build-server`, `make build-cli` | `bin/lorag`, `bin/loragctl` (build the engine library when missing) |
-| `make engine` | Rebuild the VectixDB library after pulling VectixDB |
+| `make build-server`, `make build-cli` | `bin/lorag`, `bin/loragctl` |
 | `make test` | `go test -v ./...` |
 | `go test -race ./...` | What CI runs |
 | `(cd ui && npx tsc --noEmit)` | Typecheck the Studio |
-| `make docker-build` | Image with `--build-context vectixdb=../vectixdb` |
+| `GITHUB_TOKEN=$(gh auth token) make docker-build` | Image; the token reads the private VectixDB module |
 | `make dist` | Release archive for the host in `dist/`; `PLATFORMS="darwin_arm64 linux_amd64 ..."` for others |
 
 ### Configuration for development
@@ -138,13 +138,14 @@ Adding them under `ui/e2e/` with a seed script is in [STATUS.md](STATUS.md).
 
 ## CI and Docker
 
-- **Tests.** `.github/workflows/ci.yml` checks out this repository and VectixDB side by side. The VectixDB checkout uses the secret `VECTIXDB_TOKEN`: a fine-grained token with read access to the contents of `raucheacho/vectixdb`, or a deploy key. It then builds the library with Zig and runs the Go tests with `-race`, the UI build and the Docker build.
-- **Image.** The `Dockerfile` is Debian-based (the VectixDB library needs glibc) and takes VectixDB as a named build context.
+- **Private module.** The workflows read the VectixDB module with the secret `VECTIXDB_TOKEN`, a fine-grained token with read access to the contents of `raucheacho/vectixdb`: a git `insteadOf` rule for `go`, a build secret for Docker.
+- **Tests.** `.github/workflows/ci.yml` runs `go vet` and the Go tests with `-race`, the UI build and the Docker build.
+- **Image.** The `Dockerfile` is Debian-based (the VectixDB library needs glibc) and takes the token as the build secret `github_token`, kept out of the layers.
 - **Releases.** A tag `v<version>` runs `.github/workflows/release.yml`:
   - `scripts/dist.sh` builds the archives: macOS on a macOS runner (Apple clang, the binary links Apple frameworks), Linux with `zig cc` against glibc 2.28;
   - each runner checks its native binary;
   - a draft GitHub release gets the archives, `SHA256SUMS` and the Homebrew formula from `scripts/homebrew.sh`;
-  - the Docker image goes to `ghcr.io` (amd64 only: building the engine under arm64 emulation is too slow).
+  - the Docker image goes to `ghcr.io` (amd64 only for now).
 
   Publish the draft by hand, then copy `lorag.rb` to the tap repository. Details in [BUILD_INSTRUCTIONS.md](../BUILD_INSTRUCTIONS.md).
 - **Installation.** `scripts/install.sh` installs a release in `~/.local/bin` after checking its checksum, and with `--service` adds a systemd user unit. `LORAG_DOWNLOAD_URL` points it at a local mirror for testing.

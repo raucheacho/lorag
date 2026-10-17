@@ -33,17 +33,15 @@ Studio sur http://localhost:8080, données dans `~/.lorag/data`.
 
 Prérequis :
 - Go 1.24 ;
-- Zig 0.16 ;
 - Node.js 20 ;
 - [Ollama](https://ollama.com) ;
-- le dépôt VectixDB à côté de celui-ci.
+- un accès git au dépôt privé VectixDB, et `go env -w GOPRIVATE='github.com/raucheacho/*'`.
 
 ```sh
 git clone https://github.com/raucheacho/lorag
-git clone https://github.com/raucheacho/vectixdb
 cd lorag
 ollama pull bge-m3   # modèle d'embedding multilingue (1,2 Go)
-make build            # moteur VectixDB, Studio, bin/lorag et bin/loragctl
+make build            # Studio, bin/lorag et bin/loragctl
 ./bin/lorag server    # Studio sur http://localhost:8080
 ```
 

@@ -15,6 +15,16 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/raucheacho/vectixdb/bindings/go v0.1.0 h1:xJuTzNps7HMvM9N7MxE2UaM5NgwDU38+9BjU3P7s330=
+github.com/raucheacho/vectixdb/bindings/go v0.1.0/go.mod h1:XkFzkQvZLk0oakf9E4F0NOuo3LQJRbh1233VNJHiUb0=
+github.com/raucheacho/vectixdb/bindings/go/lib/darwin_amd64 v0.1.0 h1:/W7GFfcACP5HEvoy7g8GHryxwe9F0QWPDTKkJ0trdPM=
+github.com/raucheacho/vectixdb/bindings/go/lib/darwin_amd64 v0.1.0/go.mod h1:TWzaR3zLDQnPoWIRRGhNTHv+S0BnExF7f81iFF4j20Y=
+github.com/raucheacho/vectixdb/bindings/go/lib/darwin_arm64 v0.1.0 h1:Ptw0TxcutDN6EbUm/ygElcS6JnxhqM/SVv2DRr9BCu4=
+github.com/raucheacho/vectixdb/bindings/go/lib/darwin_arm64 v0.1.0/go.mod h1:Z69NE0qxUZ1UnncdKGmaMNlt6PVoIAjKkF1b1VZnIGo=
+github.com/raucheacho/vectixdb/bindings/go/lib/linux_amd64 v0.1.0 h1:Y32sN5QBDQBUArbB1VHjQSfVejXcKPaQMPfOhWKTbeI=
+github.com/raucheacho/vectixdb/bindings/go/lib/linux_amd64 v0.1.0/go.mod h1:hpHGyZIs7Cx12lP6qD4VhhuOAJpBtvxq3xWNZ5zQcG8=
+github.com/raucheacho/vectixdb/bindings/go/lib/linux_arm64 v0.1.0 h1:wMEn2YUoQMu0CAEgJIepm9aVor2oHmonYAektBKivAE=
+github.com/raucheacho/vectixdb/bindings/go/lib/linux_arm64 v0.1.0/go.mod h1:idXGOd6ETORpvR6p4BXAldGlnrisiPiaor6LZLCt9Sg=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
 github.com/spf13/cobra v1.8.0 h1:7aJaZx1B85qltLMc546zn58BxxfZdR/W22ej9CFoEf0=
 github.com/spf13/cobra v1.8.0/go.mod h1:WXLWApfZ71AjXPya3WOlMsY9yMs7YeiHhFVlvLyhcho=

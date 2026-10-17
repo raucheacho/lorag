@@ -1,5 +1,6 @@
-# Build with the VectixDB checkout as a named context:
-#   docker build --build-context vectixdb=../vectixdb -t lorag .
+# VectixDB is a private Go module: pass a GitHub token that can read it as a
+# build secret (it stays out of the image layers):
+#   GITHUB_TOKEN=$(gh auth token) docker build --secret id=github_token,env=GITHUB_TOKEN -t lorag .
 
 # UI
 FROM node:20-alpine AS ui
@@ -9,22 +10,16 @@ RUN npm ci
 COPY ui/ ./
 RUN npm run build
 
-# Engine and binaries
+# Binaries (the VectixDB module carries its prebuilt static library)
 FROM golang:1.24-bookworm AS builder
-ARG ZIG_VERSION=0.16.0
-RUN apt-get update && apt-get install -y --no-install-recommends xz-utils \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -fsSL "https://ziglang.org/download/${ZIG_VERSION}/zig-$(uname -m)-linux-${ZIG_VERSION}.tar.xz" \
-       | tar -xJ -C /opt \
-    && ln -s "/opt/zig-$(uname -m)-linux-${ZIG_VERSION}/zig" /usr/local/bin/zig
-
-# go.mod points the binding at ../vectixdb/bindings/go.
-COPY --from=vectixdb . /src/vectixdb
-RUN cd /src/vectixdb && rm -rf zig-out .zig-cache bindings/go/lib/*/libvectixdb.a && ./scripts/go-libs.sh
-
+ENV GOPRIVATE=github.com/raucheacho/*
 WORKDIR /src/lorag
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=secret,id=github_token,required=true \
+    GIT_CONFIG_COUNT=1 \
+    GIT_CONFIG_KEY_0="url.https://x-access-token:$(cat /run/secrets/github_token)@github.com/.insteadOf" \
+    GIT_CONFIG_VALUE_0=https://github.com/ \
+    go mod download
 COPY . .
 COPY --from=ui /ui/dist ./ui/dist
 ARG VERSION=dev

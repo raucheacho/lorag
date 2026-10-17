@@ -5,35 +5,40 @@
 | Outil | Version | Rôle |
 | --- | --- | --- |
 | Go | 1.24 ou plus | démon et CLI (cgo activé) |
-| Zig | 0.16.0 exactement | compile le moteur VectixDB ; sert aussi de compilateur C pour la compilation croisée |
 | Node.js et npm | 20 | le Studio |
-| Dépôt VectixDB | | à côté de celui-ci (`../vectixdb`), ou ailleurs avec `make VECTIXDB=/chemin/vectixdb` |
 | Compilateur C | | macOS : `xcode-select --install` ; Linux : `build-essential` |
+| Zig | 0.16.0 | seulement pour les archives Linux (`zig cc` comme compilateur C croisé) |
+
+VectixDB est un module Go privé. Une fois pour toutes :
+
+```sh
+go env -w GOPRIVATE='github.com/raucheacho/*'   # ni proxy ni base de sommes publics pour ce module
+gh auth setup-git                               # ou une clé SSH : git doit pouvoir lire raucheacho/vectixdb
+```
 
 Outils facultatifs pour l'extraction locale (PDF par page, audio, vidéo, OCR) : voir [docs/MEDIA_INDEXING.md](docs/MEDIA_INDEXING.md). Sans eux, les fichiers concernés échouent avec un message clair dans Ingestion, et le reste s'indexe normalement.
 
 ## Comment le moteur est lié
 
-- **Bibliothèque statique.** Le moteur de recherche est `libvectixdb.a`, compilée par Zig et liée dans `lorag` par cgo.
-- **Module Go.** `go.mod` pointe le binding vers le dépôt voisin :
+- **Bibliothèque statique.** Le moteur de recherche est `libvectixdb.a`, liée dans `lorag` par cgo.
+- **Module Go.** `go.mod` dépend d'une version publiée du binding (`github.com/raucheacho/vectixdb/bindings/go v0.1.0`). Le module contient la bibliothèque précompilée de chaque plateforme : ni Zig ni dépôt VectixDB pour compiler.
+- **Changer de version.** `go get github.com/raucheacho/vectixdb/bindings/go@v0.2.0`, puis `go mod tidy`.
+- **Tester un VectixDB local** (non publié) : un `go.work`, ignoré par git, avec le binding et le module de la plateforme ; compiler d'abord la bibliothèque avec `../vectixdb/scripts/go-libs.sh`.
 
+  ```sh
+  go work init . ../vectixdb/bindings/go ../vectixdb/bindings/go/lib/darwin_arm64
   ```
-  replace github.com/raucheacho/vectixdb/bindings/go => ../vectixdb/bindings/go
-  ```
-
-- **Compilation de la bibliothèque.** `make build-server`, `make build-cli`, `make test` et `make dev-server` la compilent si elle manque. `make engine` la recompile après une mise à jour de VectixDB.
 
 ## Compiler
 
 ```sh
-make build            # Studio (ui/dist), moteur, bin/lorag, bin/loragctl
+make build            # Studio (ui/dist), bin/lorag, bin/loragctl
 ./bin/lorag server
 ```
 
 Étape par étape :
 
 ```sh
-make engine                         # ../vectixdb/scripts/go-libs.sh
 (cd ui && npm ci && npm run build)  # ui/dist, embarqué dans le binaire
 go build -o bin/lorag ./cmd/lorag
 go build -o bin/loragctl ./cmd/loragctl
@@ -53,12 +58,12 @@ Détails : [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Docker
 
-L'image est construite sur Debian (la bibliothèque VectixDB est liée à la glibc ; Alpine ne convient pas). Le dépôt VectixDB est passé comme contexte nommé :
+L'image est construite sur Debian (la bibliothèque VectixDB est liée à la glibc ; Alpine ne convient pas). Le module VectixDB étant privé, la construction reçoit un jeton GitHub comme secret, qui ne reste pas dans l'image :
 
 ```sh
-make docker-build
+GITHUB_TOKEN=$(gh auth token) make docker-build
 # ou
-docker build --build-context vectixdb=../vectixdb -t lorag .
+GITHUB_TOKEN=$(gh auth token) docker build --secret id=github_token,env=GITHUB_TOKEN -t lorag .
 
 docker run -p 8080:8080 -v "$PWD/data:/data" \
   -e LORAG_EMBEDDING_URL=http://host.docker.internal:11434 lorag
@@ -98,7 +103,6 @@ Un tag avec un tiret (`v0.1.0-rc.1`) donne une préversion.
 
 | Erreur | Solution |
 | --- | --- |
-| `libvectixdb.a: no such file` | `make engine` (VectixDB doit être à côté, ou `VECTIXDB=…`) |
+| `reading github.com/raucheacho/vectixdb/...: 404` ou `terminal prompts disabled` | Module privé : `GOPRIVATE` et accès git, voir les prérequis |
 | `pattern all:dist: no matching files found` | Compiler le Studio d'abord : `cd ui && npm run build` |
-| `undefined reference to __zig_probe_stack` (Linux, macOS Intel) | Bibliothèque compilée avec une ancienne version de VectixDB : mettre VectixDB à jour, puis `make engine` |
-| `zig: command not found` ou erreurs de syntaxe Zig | Installer Zig 0.16.0 exactement |
+| `zig: command not found` (archives Linux) | Installer Zig 0.16.0 |

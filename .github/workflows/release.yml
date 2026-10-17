@@ -11,6 +11,11 @@ permissions:
   contents: write
   packages: write
 
+# VectixDB is a private Go module: VECTIXDB_TOKEN is a fine-grained token
+# with read access to raucheacho/vectixdb contents.
+env:
+  GOPRIVATE: github.com/raucheacho/*
+
 jobs:
   build:
     strategy:
@@ -27,36 +32,30 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: lorag
-      # VectixDB is a private repository: VECTIXDB_TOKEN is a fine-grained
-      # token with read access to raucheacho/vectixdb contents.
-      - uses: actions/checkout@v4
-        with:
-          repository: raucheacho/vectixdb
-          token: ${{ secrets.VECTIXDB_TOKEN }}
-          path: vectixdb
+      # zig cc: the C compiler for the Linux cross builds.
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0
       - uses: actions/setup-go@v5
         with:
-          go-version-file: lorag/go.mod
-          cache-dependency-path: lorag/go.sum
+          go-version-file: go.mod
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: npm
-          cache-dependency-path: lorag/ui/package-lock.json
+          cache-dependency-path: ui/package-lock.json
+      - name: Access to the VectixDB module
+        env:
+          TOKEN: ${{ secrets.VECTIXDB_TOKEN }}
+        run: git config --global url."https://x-access-token:$TOKEN@github.com/raucheacho/".insteadOf "https://github.com/raucheacho/"
 
       - name: Build the Studio
-        working-directory: lorag/ui
+        working-directory: ui
         run: npm ci && npm run build
       - name: Build the archives
-        working-directory: lorag
         run: ./scripts/dist.sh "$GITHUB_REF_NAME" ${{ matrix.platforms }}
       - name: Check the native binary
-        working-directory: lorag/dist
+        working-directory: dist
         run: |
           name="lorag_${GITHUB_REF_NAME#v}_${{ matrix.smoke }}"
           tar -xzf "$name.tar.gz"
@@ -65,7 +64,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: archives-${{ matrix.os }}
-          path: lorag/dist/*.tar.gz
+          path: dist/*.tar.gz
           if-no-files-found: error
 
   release:
@@ -96,13 +95,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: lorag
-      - uses: actions/checkout@v4
-        with:
-          repository: raucheacho/vectixdb
-          token: ${{ secrets.VECTIXDB_TOKEN }}
-          path: vectixdb
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -116,11 +108,11 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-      # amd64 only: building the engine for arm64 under emulation is too slow.
+      # amd64 only for now (arm64: see docs/STATUS.md).
       - uses: docker/build-push-action@v6
         with:
-          context: lorag
-          build-contexts: vectixdb=vectixdb
+          context: .
+          secrets: github_token=${{ secrets.VECTIXDB_TOKEN }}
           build-args: VERSION=${{ steps.meta.outputs.version }}
           platforms: linux/amd64
           push: true

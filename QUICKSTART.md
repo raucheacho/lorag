@@ -6,24 +6,28 @@ Dix minutes, depuis les sources. Il n'y a pas encore d'installeur.
 
 ```sh
 # macOS
-brew install go zig node ollama
+brew install go node ollama gh
 brew install poppler ffmpeg whisper-cpp tesseract   # facultatif : PDF par page, audio, vidéo, OCR
 ollama serve &                                       # si Ollama ne tourne pas déjà
 ollama pull bge-m3          # modèle d'embedding multilingue (français, anglais, arabe…), 1,2 Go
 ```
 
-Zig doit être en version 0.16.
+VectixDB, le moteur de recherche, est un module Go privé :
+
+```sh
+gh auth login && gh auth setup-git
+go env -w GOPRIVATE='github.com/raucheacho/*'
+```
 
 ## 2. Compiler
 
 ```sh
-git clone https://github.com/raucheacho/vectixdb
 git clone https://github.com/raucheacho/lorag
 cd lorag
 make build
 ```
 
-`make build` compile le moteur VectixDB, le Studio, puis `bin/lorag` et `bin/loragctl`.
+`make build` télécharge le moteur VectixDB (précompilé), compile le Studio, puis `bin/lorag` et `bin/loragctl`.
 
 ## 3. Lancer
 
