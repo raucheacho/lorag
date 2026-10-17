@@ -29,17 +29,17 @@ func (c *Chunker) Chunk(text string) []string {
 	if text == "" {
 		return []string{}
 	}
-	
+
 	// Try to chunk by paragraphs first
 	paragraphs := c.splitParagraphs(text)
-	
+
 	var chunks []string
 	var currentChunk strings.Builder
-	
+
 	for _, para := range paragraphs {
 		paraLen := utf8.RuneCountInString(para)
 		currentLen := utf8.RuneCountInString(currentChunk.String())
-		
+
 		// If paragraph is larger than chunk size, split it
 		if paraLen > c.chunkSize {
 			// Flush current chunk if not empty
@@ -47,34 +47,34 @@ func (c *Chunker) Chunk(text string) []string {
 				chunks = append(chunks, strings.TrimSpace(currentChunk.String()))
 				currentChunk.Reset()
 			}
-			
+
 			// Split large paragraph
 			paraChunks := c.splitBySize(para)
 			chunks = append(chunks, paraChunks...)
 			continue
 		}
-		
+
 		// Check if adding this paragraph would exceed chunk size
 		if currentLen+paraLen > c.chunkSize && currentChunk.Len() > 0 {
 			chunks = append(chunks, strings.TrimSpace(currentChunk.String()))
-			
+
 			// Keep overlap
 			overlap := c.getOverlap(currentChunk.String())
 			currentChunk.Reset()
 			currentChunk.WriteString(overlap)
 		}
-		
+
 		if currentChunk.Len() > 0 {
 			currentChunk.WriteString("\n\n")
 		}
 		currentChunk.WriteString(para)
 	}
-	
+
 	// Don't forget the last chunk
 	if currentChunk.Len() > 0 {
 		chunks = append(chunks, strings.TrimSpace(currentChunk.String()))
 	}
-	
+
 	return chunks
 }
 
@@ -82,16 +82,16 @@ func (c *Chunker) Chunk(text string) []string {
 func (c *Chunker) splitParagraphs(text string) []string {
 	// Split by double newline or multiple single newlines
 	text = strings.ReplaceAll(text, "\r\n", "\n")
-	
+
 	var paragraphs []string
 	var current strings.Builder
-	
+
 	lines := strings.Split(text, "\n")
 	emptyCount := 0
-	
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		
+
 		if trimmed == "" {
 			emptyCount++
 			if emptyCount >= 1 && current.Len() > 0 {
@@ -106,32 +106,32 @@ func (c *Chunker) splitParagraphs(text string) []string {
 			current.WriteString(line)
 		}
 	}
-	
+
 	if current.Len() > 0 {
 		paragraphs = append(paragraphs, strings.TrimSpace(current.String()))
 	}
-	
+
 	// If no paragraphs found, treat entire text as one paragraph
 	if len(paragraphs) == 0 && strings.TrimSpace(text) != "" {
 		paragraphs = append(paragraphs, strings.TrimSpace(text))
 	}
-	
+
 	return paragraphs
 }
 
 // splitBySize splits text by fixed size with word boundary awareness
 func (c *Chunker) splitBySize(text string) []string {
 	var chunks []string
-	
+
 	runes := []rune(text)
 	start := 0
-	
+
 	for start < len(runes) {
 		end := start + c.chunkSize
 		if end > len(runes) {
 			end = len(runes)
 		}
-		
+
 		// Try to find a better break point
 		if end < len(runes) {
 			// Look for sentence ending or whitespace
@@ -141,7 +141,7 @@ func (c *Chunker) splitBySize(text string) []string {
 					break
 				}
 			}
-			
+
 			// If no sentence break, try whitespace
 			if end == start+c.chunkSize {
 				for i := end - 1; i > start+c.chunkSize/2; i-- {
@@ -152,10 +152,10 @@ func (c *Chunker) splitBySize(text string) []string {
 				}
 			}
 		}
-		
+
 		chunk := string(runes[start:end])
 		chunks = append(chunks, strings.TrimSpace(chunk))
-		
+
 		// Move start with overlap, but ensure we make progress
 		if end >= len(runes) {
 			break
@@ -169,7 +169,7 @@ func (c *Chunker) splitBySize(text string) []string {
 			start = end
 		}
 	}
-	
+
 	return chunks
 }
 
@@ -179,7 +179,7 @@ func (c *Chunker) getOverlap(chunk string) string {
 	if len(runes) <= c.chunkOverlap {
 		return chunk
 	}
-	
+
 	start := len(runes) - c.chunkOverlap
 	return string(runes[start:])
 }
@@ -313,8 +313,13 @@ func edgeLines(text string) (string, string) {
 	return first, last
 }
 
+// maxTimedSpan bounds the time range of one media piece, so a result points
+// at the right minute even in slow speech.
+const maxTimedSpan = 60_000
+
 // groupTimed groups transcript segments, in time order, into pieces of at
-// most the chunk size; a piece spans from its first start to its last end.
+// most the chunk size and one minute; a piece spans from its first start to
+// its last end.
 func (c *Chunker) groupTimed(segs []parsers.Segment) []Piece {
 	var out []Piece
 	var cur *Piece
@@ -323,7 +328,8 @@ func (c *Chunker) groupTimed(segs []parsers.Segment) []Piece {
 			continue
 		}
 		text := strings.TrimSpace(s.Text)
-		if cur != nil && utf8.RuneCountInString(cur.Text)+1+utf8.RuneCountInString(text) > c.chunkSize {
+		tooLong := cur != nil && s.EndMs-cur.StartMs > maxTimedSpan
+		if cur != nil && (tooLong || utf8.RuneCountInString(cur.Text)+1+utf8.RuneCountInString(text) > c.chunkSize) {
 			out = append(out, *cur)
 			cur = nil
 		}

@@ -1,5 +1,7 @@
-// Package memory is the problem-solution memory: agents save what solved a
-// problem and recall it later in a few tokens instead of solving it again.
+// Package memory is what agents already know: fixes (a problem and what
+// solved it) and knowledge (a question and its verified answer, e.g. found
+// after a web search). Agents recall an entry in a few tokens instead of
+// solving the problem or searching the web again.
 //
 // Entries live in a VectixDB collection next to the document chunks; every
 // change is also appended to an event collection, so an entry is never
@@ -11,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"sort"
 	"strconv"
 	"strings"
@@ -36,11 +39,20 @@ const (
 // Global is the space shared by every project.
 const Global = "global"
 
+// Kinds of entries.
+const (
+	// KindFix is a problem and what solved it.
+	KindFix = "fix"
+	// KindKnowledge is a question and its verified answer: a command, a
+	// configuration value, an API detail, a decision. Not a task.
+	KindKnowledge = "knowledge"
+)
+
 const (
 	metaID          = "memory"
 	entryPrefix     = "memory_"
 	eventsName      = "memory_events"
-	schemaVersion   = 1
+	schemaVersion   = 3
 	listLimit       = 10_000
 	defaultSolve    = 1500 // tokens assumed spent solving a problem from scratch
 	staleAfter      = 180 * 24 * time.Hour
@@ -54,6 +66,7 @@ const (
 type Entry struct {
 	ID        string    `json:"id"`
 	Signature string    `json:"signature"`
+	Kind      string    `json:"kind"` // fix or knowledge
 	Variant   int       `json:"variant"`
 	Revision  int       `json:"revision"`
 	Problem   string    `json:"problem"`
@@ -71,6 +84,7 @@ type Entry struct {
 	Author    string    `json:"author"`           // agent or person
 	Origin    string    `json:"origin,omitempty"` // MCP client name
 	SolveCost int       `json:"solve_tokens"`
+	Source    string    `json:"source,omitempty"` // where the knowledge comes from: URL, document, person
 	Verified  time.Time `json:"verified_at"`
 	Created   time.Time `json:"created_at"`
 	Updated   time.Time `json:"updated_at"`
@@ -107,6 +121,8 @@ type Service struct {
 	dim      int
 	entries  string // active entry collection
 
+	thresholds Thresholds
+
 	mu   sync.Mutex // serializes writes (dedupe and counters)
 	seq  atomic.Int64
 	vecs map[string][]float32 // stored vectors (reads do not return them), guarded by mu
@@ -115,8 +131,8 @@ type Service struct {
 // Open opens the memory collections in db, creating them on first use. When
 // the embedding dimension changed, entries are re-embedded into a new
 // generation before it becomes active.
-func Open(db *vtx.DB, embedder embeddings.Provider, dim int) (*Service, error) {
-	s := &Service{db: db, embedder: embedder, dim: dim, vecs: map[string][]float32{}}
+func Open(db *vtx.DB, embedder embeddings.Provider, dim int, opts Options) (*Service, error) {
+	s := &Service{db: db, embedder: embedder, dim: dim, vecs: map[string][]float32{}, thresholds: thresholdsFor(opts)}
 	s.seq.Store(time.Now().UnixNano())
 	names, err := db.Collections()
 	if err != nil {
@@ -133,7 +149,7 @@ func Open(db *vtx.DB, embedder embeddings.Provider, dim int) (*Service, error) {
 		}
 	}
 
-	want := fmt.Sprintf("schema=%d dim=%d", schemaVersion, dim)
+	want := fmt.Sprintf("schema=%d dim=%d model=%s", schemaVersion, dim, opts.Model)
 	var active, config string
 	if meta, err := db.Get(engine.MetaCollection, metaID); err != nil {
 		return nil, err
@@ -199,6 +215,7 @@ func (s *Service) schema() vtx.Schema {
 			{Name: "space", Type: vtx.TypeKeyword},
 			{Name: "status", Type: vtx.TypeKeyword},
 			{Name: "tags", Type: vtx.TypeKeywords},
+			{Name: "kind", Type: vtx.TypeKeyword},
 			{Name: "updated", Type: vtx.TypeTime},
 		},
 	}
@@ -215,6 +232,7 @@ func (s *Service) migrate(old, next string) error {
 		if json.Unmarshal(r.Payload, &e) != nil {
 			continue
 		}
+		e.Kind = kindOf(&e)
 		vec, err := s.embed(&e)
 		if err != nil {
 			return err
@@ -228,11 +246,22 @@ func (s *Service) migrate(old, next string) error {
 	return nil
 }
 
-func (s *Service) embed(e *Entry) ([]float32, error) {
+// embedText is what an entry's vector is computed from. A fix is found by
+// its problem and error; an answer also by its content, since that is
+// where the meaning often is ("Personal reminder" → "Eat before noon").
+func embedText(e *Entry) string {
 	text := e.Problem
 	if e.Error != "" {
 		text += "\n" + errorLine(e.Error)
 	}
+	if kindOf(e) == KindKnowledge {
+		text += "\n" + e.Solution
+	}
+	return text
+}
+
+func (s *Service) embed(e *Entry) ([]float32, error) {
+	text := embedText(e)
 	v, err := s.embedder.Embed(text)
 	if err != nil {
 		return nil, fmt.Errorf("embed: %w", err)
@@ -260,10 +289,19 @@ func doc(e *Entry, vec []float32) vtx.Doc {
 			"space":     vtx.Keyword(e.Space),
 			"status":    vtx.Keyword(string(e.Status)),
 			"tags":      vtx.Keywords(tags),
+			"kind":      vtx.Keyword(kindOf(e)),
 			"updated":   vtx.Time(e.Updated),
 		},
 		Payload: payload,
 	}
+}
+
+// kindOf is the entry's kind; entries saved before kinds existed are fixes.
+func kindOf(e *Entry) string {
+	if e.Kind == KindKnowledge {
+		return KindKnowledge
+	}
+	return KindFix
 }
 
 func decode(r *vtx.Result) (*Entry, bool) {
@@ -271,6 +309,7 @@ func decode(r *vtx.Result) (*Entry, bool) {
 	if json.Unmarshal(r.Payload, &e) != nil {
 		return nil, false
 	}
+	e.Kind = kindOf(&e)
 	return &e, true
 }
 
@@ -341,8 +380,11 @@ func (s *Service) write(entries []*Entry, vecs [][]float32, events []Event, dele
 
 // SaveRequest is what an agent (or the person) knows once a problem is solved.
 type SaveRequest struct {
-	Problem   string   `json:"problem"`
-	Solution  string   `json:"solution"`
+	// Kind is fix (default when there is an error message) or knowledge.
+	Kind      string   `json:"kind,omitempty"`
+	Problem   string   `json:"problem"`  // the problem, or the question
+	Solution  string   `json:"solution"` // the fix, or the answer
+	Source    string   `json:"source,omitempty"`
 	Error     string   `json:"error,omitempty"`
 	Project   string   `json:"project,omitempty"`
 	Space     string   `json:"space,omitempty"` // default: the project, else global
@@ -371,8 +413,20 @@ func (s *Service) Save(r SaveRequest) (*SaveResult, error) {
 		r.Problem = clean(errorLine(r.Error), 300)
 	}
 	if r.Problem == "" || r.Solution == "" {
-		return nil, errors.New("problem (or error) and solution are required")
+		return nil, errors.New("problem (or question, or error) and solution (or answer) are required")
 	}
+	switch r.Kind {
+	case KindFix, KindKnowledge:
+	case "":
+		// An error message means a fix; otherwise it is knowledge.
+		r.Kind = KindKnowledge
+		if r.Error != "" {
+			r.Kind = KindFix
+		}
+	default:
+		return nil, fmt.Errorf("kind must be %s or %s", KindFix, KindKnowledge)
+	}
+	r.Source = clean(MaskSecrets(r.Source), 500)
 	if r.Author != "person" {
 		r.Author = "agent"
 	}
@@ -398,6 +452,9 @@ func (s *Service) Save(r SaveRequest) (*SaveResult, error) {
 			v.Verified, v.Updated = now, now
 			v.Versions = union(v.Versions, r.Versions)
 			v.Tags = union(v.Tags, r.Tags)
+			if v.Source == "" {
+				v.Source = r.Source
+			}
 			if v.Status != Valid {
 				v.Status = Valid
 			}
@@ -420,7 +477,7 @@ func (s *Service) Save(r SaveRequest) (*SaveResult, error) {
 		cost = defaultSolve
 	}
 	e := &Entry{
-		ID: fmt.Sprintf("%s-%d", sig, variant), Signature: sig, Variant: variant, Revision: 1,
+		ID: fmt.Sprintf("%s-%d", sig, variant), Signature: sig, Kind: r.Kind, Variant: variant, Revision: 1, Source: r.Source,
 		Problem: r.Problem, Error: r.Error, Solution: r.Solution,
 		Space: space, Project: r.Project, Platform: r.Platform,
 		Versions: normVersions(r.Versions), Tags: union(nil, r.Tags),
@@ -515,14 +572,64 @@ type RecallResult struct {
 	Text    string  `json:"text"`
 	Tokens  int     `json:"tokens"`
 	Matches []Match `json:"matches"`
+	// Nearest is the best candidate that fell below the thresholds, to
+	// understand a miss (Studio and API only, never sent to agents).
+	Nearest *Match `json:"nearest,omitempty"`
+	// Thresholds in use.
+	Thresholds Thresholds `json:"thresholds"`
 }
 
-// Acceptance thresholds for a match that is not by signature: a wrong
-// recall costs more tokens than it saves, so similarity alone must be high.
-const (
-	minSimilarity     = 0.80
-	minSimilarityText = 0.62 // when the words match too (BM25 hit)
-)
+// Options configure the memory.
+type Options struct {
+	// Model is the embedding model: entries are re-embedded when it
+	// changes, and it picks the default thresholds.
+	Model string
+	// MinSimilarity and MinSimilarityText override the thresholds (0: the
+	// calibrated defaults for Model).
+	MinSimilarity, MinSimilarityText float64
+}
+
+// Thresholds accept a match that is not by signature: cosine similarity at
+// least Similarity, or at least SimilarityText when the words match too
+// (BM25 hit). A wrong recall costs more tokens than it saves; similarity
+// matches also show their problem line so the agent can judge.
+type Thresholds struct {
+	Similarity     float64 `json:"similarity"`
+	SimilarityText float64 `json:"similarity_text"`
+	Calibrated     bool    `json:"calibrated"` // defaults measured for this model
+}
+
+// calibrated holds thresholds measured on French and English paraphrases
+// against unrelated questions (docs/MEMORY.md). Similarities depend on the
+// model, so an unknown model gets the strict ones.
+var calibrated = map[string]Thresholds{
+	// True matches 0.59-0.77 (French, English, across languages); unrelated
+	// questions up to 0.49, and 0.575 for a neighbor problem (MySQL vs a
+	// Postgres entry).
+	"bge-m3": {Similarity: 0.55, SimilarityText: 0.50, Calibrated: true},
+	// English-centric: English paraphrases 0.72-0.84, unrelated up to 0.70;
+	// French is compressed and cross-language fails. Prefer bge-m3.
+	"nomic-embed-text": {Similarity: 0.80, SimilarityText: 0.705, Calibrated: true},
+}
+
+func thresholdsFor(o Options) Thresholds {
+	name := strings.ToLower(o.Model)
+	name, _, _ = strings.Cut(name, ":") // "bge-m3:latest"
+	t, ok := calibrated[name]
+	if !ok {
+		t = Thresholds{Similarity: 0.80, SimilarityText: 0.705}
+	}
+	if o.MinSimilarity > 0 {
+		t.Similarity, t.Calibrated = o.MinSimilarity, false
+	}
+	if o.MinSimilarityText > 0 {
+		t.SimilarityText, t.Calibrated = o.MinSimilarityText, false
+	}
+	return t
+}
+
+// Thresholds returns the thresholds in use.
+func (s *Service) Thresholds() Thresholds { return s.thresholds }
 
 // Recall looks the problem up: by signature first, then by meaning and
 // words, keeping only confident matches. Obsolete entries are never
@@ -544,6 +651,7 @@ func (s *Service) Recall(r RecallRequest) (*RecallResult, error) {
 	}
 
 	var matches []Match
+	var nearest *Match
 	seen := map[string]bool{}
 	if errText != "" {
 		vs, err := s.bySignature(Signature(errText, ""))
@@ -568,7 +676,7 @@ func (s *Service) Recall(r RecallRequest) (*RecallResult, error) {
 			filter = vtx.And(filter, vtx.In("space", vtx.Keyword(Global), vtx.Keyword(r.Project)))
 		}
 		res, err := s.db.Search(s.entries, vtx.Query{
-			Vector: vec, Text: text, TextFields: []string{"problem", "error"},
+			Vector: vec, Text: text, TextFields: []string{"problem", "error", "solution"},
 			Filter: filter, K: uint32(r.K * 4), Fusion: vtx.Fusion{RRFK: 60},
 		})
 		if err != nil {
@@ -580,11 +688,14 @@ func (s *Service) Recall(r RecallRequest) (*RecallResult, error) {
 			if h.VectorRank > 0 {
 				sim = 1 - h.VectorDistance
 			}
-			if sim < minSimilarity && (h.TextRank == 0 || sim < minSimilarityText) {
-				continue
-			}
 			e, ok := decode(h)
 			if !ok || seen[e.ID] {
+				continue
+			}
+			if float64(sim) < s.thresholds.Similarity && (h.TextRank == 0 || float64(sim) < s.thresholds.SimilarityText) {
+				if nearest == nil || sim > nearest.Similarity {
+					nearest = &Match{Entry: e, By: "similarity", Similarity: sim, Status: e.Status}
+				}
 				continue
 			}
 			seen[e.ID] = true
@@ -639,7 +750,10 @@ func (s *Service) Recall(r RecallRequest) (*RecallResult, error) {
 	if err := s.write(changed, nil, events); err != nil {
 		log.Printf("memory: record recall: %v", err)
 	}
-	return &RecallResult{Text: text, Tokens: tokens, Matches: matches}, nil
+	if len(matches) > 0 {
+		nearest = nil
+	}
+	return &RecallResult{Text: text, Tokens: tokens, Matches: matches, Nearest: nearest, Thresholds: s.thresholds}, nil
 }
 
 func inSpace(e *Entry, project string) bool {
@@ -699,9 +813,11 @@ func major(v string) string {
 }
 
 // format renders matches compactly within budget tokens and returns how many
-// fit. The first match is always included, its fix cut if needed.
+// fit. The first match is always included, its fix cut if needed. The
+// header is the id, successes/failures and the last verification; the
+// status only shows when it is not valid.
 //
-//	[3f2a9c41b7-1] valid · verified 2026-10-02 · 4 ok/0 failed
+//	[3f2a9c41b7-1] +4/-0 2026-10-02
 //	Fix: rm -rf .expo node_modules && npx expo start -c
 //	Ctx: expo@52 react-native@0.76
 func format(ms []Match, budget int) (string, int) {
@@ -713,23 +829,36 @@ func format(ms []Match, budget int) (string, int) {
 	for i, m := range ms {
 		e := m.Entry
 		var block strings.Builder
-		status := string(m.Status)
-		if m.Reason != "" {
-			status += " (" + m.Reason + ")"
+		fmt.Fprintf(&block, "[%s] +%d/-%d %s", e.ID, e.Successes, e.Failures, e.Verified.Format("2006-01-02"))
+		if m.Status != Valid {
+			block.WriteString(" " + strings.ToUpper(string(m.Status)))
+			if m.Reason != "" {
+				block.WriteString(" (" + m.Reason + ")")
+			}
 		}
-		fmt.Fprintf(&block, "[%s] %s · verified %s · %d ok/%d failed\n", e.ID, status, e.Verified.Format("2006-01-02"), e.Successes, e.Failures)
+		block.WriteString("\n")
+		label, question := "Fix: ", "Problem: "
+		if kindOf(e) == KindKnowledge {
+			label, question = "Answer: ", "Q: "
+		}
 		if m.By != "signature" {
-			fmt.Fprintf(&block, "Problem: %s\n", e.Problem)
+			block.WriteString(question + e.Problem + "\n")
 		}
-		fix := "Fix: " + e.Solution
-		ctx := contextLine(e)
-		rest := budget - EstimateTokens(b.String()+block.String()+ctx)
+		fix := label + e.Solution
+		// The fix or answer comes first: the source line goes when it would
+		// cut it.
+		src, ctx := sourceLine(e), contextLine(e)
+		rest := budget - EstimateTokens(b.String()+block.String()+src+ctx)
+		if src != "" && rest < EstimateTokens(fix) {
+			src = ""
+			rest = budget - EstimateTokens(b.String()+block.String()+ctx)
+		}
 		if i > 0 && rest < EstimateTokens(fix) {
 			break // later matches only when they fit whole
 		}
 		fix = cutTokens(fix, max(rest, 12))
 		block.WriteString(fix + "\n")
-		block.WriteString(ctx)
+		block.WriteString(src + ctx)
 		if i > 0 {
 			b.WriteString("\n")
 		}
@@ -739,18 +868,48 @@ func format(ms []Match, budget int) (string, int) {
 	return strings.TrimRight(b.String(), "\n"), used
 }
 
+func sourceLine(e *Entry) string {
+	if src := shortSource(e.Source); src != "" {
+		return "Src: " + src + "\n"
+	}
+	return ""
+}
+
 func contextLine(e *Entry) string {
+	var b strings.Builder
 	parts := append([]string{}, e.Versions...)
 	if e.Platform != "" {
 		parts = append(parts, e.Platform)
 	}
-	if e.Space != Global {
+	if e.Space != "" && e.Space != Global {
 		parts = append(parts, "project "+e.Space)
 	}
-	if len(parts) == 0 {
-		return ""
+	if len(parts) > 0 {
+		b.WriteString("Ctx: " + strings.Join(parts, " ") + "\n")
 	}
-	return "Ctx: " + strings.Join(parts, " ") + "\n"
+	return b.String()
+}
+
+// shortSource keeps a source readable in a few tokens: for a URL, the host
+// and the last path segment; otherwise the source, cut to 50 characters.
+func shortSource(src string) string {
+	src = strings.TrimSpace(src)
+	if u, err := url.Parse(src); err == nil && u.Host != "" {
+		host := strings.TrimPrefix(u.Host, "www.")
+		path := strings.Trim(u.Path, "/")
+		switch i := strings.LastIndex(path, "/"); {
+		case path == "":
+			return host
+		case i < 0:
+			return host + "/" + path
+		default:
+			return host + "/…/" + path[i+1:]
+		}
+	}
+	if r := []rune(src); len(r) > 50 {
+		src = string(r[:49]) + "…"
+	}
+	return src
 }
 
 // EstimateTokens approximates the tokenizer of most models: about 3.5
@@ -762,6 +921,9 @@ func EstimateTokens(s string) int {
 	}
 	return (n*2 + 6) / 7
 }
+
+// CutTokens shortens s to about tokens tokens, at a word boundary.
+func CutTokens(s string, tokens int) string { return cutTokens(s, tokens) }
 
 func cutTokens(s string, tokens int) string {
 	maxRunes := tokens * 7 / 2
@@ -778,7 +940,8 @@ func cutTokens(s string, tokens int) string {
 
 // ---- feedback and edits -------------------------------------------------------
 
-// Feedback records whether a recalled fix worked. A failure makes the entry
+// Feedback records whether a recalled entry helped: the fix worked, or the
+// answer was correct and useful. A failure makes the entry
 // recheck; repeated failures that outnumber successes make it obsolete. A
 // success makes it valid again.
 func (s *Service) Feedback(id string, worked bool, note, origin string) (*Entry, error) {
@@ -816,6 +979,8 @@ func (s *Service) Feedback(id string, worked bool, note, origin string) (*Entry,
 
 // Edit is a correction by the person: any field left nil is kept.
 type Edit struct {
+	Kind     *string  `json:"kind,omitempty"`
+	Source   *string  `json:"source,omitempty"`
 	Problem  *string  `json:"problem,omitempty"`
 	Solution *string  `json:"solution,omitempty"`
 	Status   *Status  `json:"status,omitempty"`
@@ -844,6 +1009,15 @@ func (s *Service) Update(id string, ed Edit) (*Entry, error) {
 	}
 	if ed.Tags != nil {
 		e.Tags = union(nil, ed.Tags)
+	}
+	if ed.Source != nil {
+		e.Source = clean(MaskSecrets(*ed.Source), 500)
+	}
+	if ed.Kind != nil {
+		if *ed.Kind != KindFix && *ed.Kind != KindKnowledge {
+			return nil, fmt.Errorf("kind must be %s or %s", KindFix, KindKnowledge)
+		}
+		e.Kind = *ed.Kind
 	}
 	if ed.Status != nil {
 		switch *ed.Status {
@@ -895,6 +1069,7 @@ func (s *Service) Delete(id string) error {
 
 // ListRequest filters entries for the Studio and the CLI.
 type ListRequest struct {
+	Kind   string
 	Status Status
 	Space  string
 	Query  string // words or meaning
@@ -905,6 +1080,9 @@ type ListRequest struct {
 // Query is set).
 func (s *Service) List(r ListRequest) ([]*Entry, error) {
 	var filters []*vtx.Filter
+	if r.Kind != "" {
+		filters = append(filters, vtx.Eq("kind", vtx.Keyword(r.Kind)))
+	}
 	if r.Status != "" {
 		filters = append(filters, vtx.Eq("status", vtx.Keyword(string(r.Status))))
 	}
@@ -913,9 +1091,10 @@ func (s *Service) List(r ListRequest) ([]*Entry, error) {
 	}
 	var filter *vtx.Filter
 	switch len(filters) {
+	case 0:
 	case 1:
 		filter = filters[0]
-	case 2:
+	default:
 		filter = vtx.And(filters...)
 	}
 	limit := r.Limit
@@ -985,6 +1164,7 @@ type Stats struct {
 	Entries     int            `json:"entries"`
 	ByStatus    map[Status]int `json:"by_status"`
 	BySpace     map[string]int `json:"by_space"`
+	ByKind      map[string]int `json:"by_kind"`
 	Recalls     int            `json:"recalls"`
 	Hits        int            `json:"hits"`
 	Misses      int            `json:"misses"`
@@ -1032,11 +1212,12 @@ func (s *Service) Stats() (*Stats, error) {
 	if err != nil {
 		return nil, err
 	}
-	st := &Stats{Entries: len(entries), ByStatus: map[Status]int{}, BySpace: map[string]int{}}
+	st := &Stats{Entries: len(entries), ByStatus: map[Status]int{}, BySpace: map[string]int{}, ByKind: map[string]int{}}
 	cost := map[string]int{}
 	for _, e := range entries {
 		st.ByStatus[e.Status]++
 		st.BySpace[e.Space]++
+		st.ByKind[kindOf(e)]++
 		cost[e.ID] = e.SolveCost
 	}
 

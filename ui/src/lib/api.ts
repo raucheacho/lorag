@@ -1,6 +1,6 @@
 // Typed client for the Lorag REST API (/api/v1) and the MCP endpoint.
 
-export type Mode = 'hybrid' | 'vector' | 'keyword';
+export type Mode = 'hybrid' | 'vector' | 'keyword' | 'exact';
 export type Source = 'mcp' | 'api' | 'studio';
 
 export interface IndexStats {
@@ -74,7 +74,24 @@ export interface SearchResult {
   score: number;
   vector?: Signal;
   keyword?: Signal;
-  source: { path: string; filename: string; position: number; start_byte: number; end_byte: number };
+  source: SourceRef;
+}
+
+// Where a chunk comes from; the position fields are set when the source has
+// pages, lines or a timeline.
+export interface SourceRef {
+  path: string;
+  filename: string;
+  position: number;
+  start_byte: number;
+  end_byte: number;
+  kind?: string;
+  page?: number;
+  line_start?: number;
+  line_end?: number;
+  start_ms?: number;
+  end_ms?: number;
+  section?: string;
 }
 
 export interface Filter {
@@ -137,6 +154,7 @@ export interface Document {
   updated_at: string;
   indexed_at?: string;
   chunk_count: number;
+  kind?: string;
 }
 
 export interface Chunk {
@@ -150,6 +168,127 @@ export interface Chunk {
   created_at: string;
   dim: number;
   indexed: boolean;
+  page?: number;
+  line_start?: number;
+  line_end?: number;
+  start_ms?: number;
+  end_ms?: number;
+  section?: string;
+}
+
+export type MemoryStatus = 'valid' | 'recheck' | 'obsolete';
+
+export type MemoryKind = 'fix' | 'knowledge';
+
+export interface MemoryEntry {
+  id: string;
+  signature: string;
+  kind: MemoryKind;
+  source?: string;
+  variant: number;
+  revision: number;
+  problem: string;
+  error?: string;
+  solution: string;
+  space: string;
+  project?: string;
+  platform?: string;
+  versions?: string[] | null;
+  tags?: string[] | null;
+  status: MemoryStatus;
+  successes: number;
+  failures: number;
+  recalls: number;
+  author: 'agent' | 'person';
+  origin?: string;
+  solve_tokens: number;
+  verified_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoryEvent {
+  id: string;
+  at: string;
+  type: 'create' | 'variant' | 'confirm' | 'recall' | 'miss' | 'feedback' | 'edit' | 'status' | 'delete';
+  entry?: string;
+  actor?: string;
+  summary?: string;
+  tokens?: number;
+  worked?: boolean;
+  query?: string;
+  after?: MemoryEntry;
+}
+
+export interface MemoryDay {
+  date: string;
+  saves: number;
+  hits: number;
+  misses: number;
+  worked: number;
+  failed: number;
+}
+
+export interface MemoryStats {
+  entries: number;
+  by_status: Partial<Record<MemoryStatus, number>>;
+  by_space: Record<string, number>;
+  by_kind: Partial<Record<MemoryKind, number>>;
+  recalls: number;
+  hits: number;
+  misses: number;
+  hit_rate: number;
+  tokens_returned: number;
+  avg_recall_tokens: number;
+  tokens_saved_estimate: number;
+  saves: number;
+  feedback: { worked: number; failed: number };
+  daily: MemoryDay[];
+  recurring: { id: string; problem: string; count: number }[] | null;
+  useful: { id: string; problem: string; count: number }[] | null;
+  thresholds?: Thresholds;
+}
+
+export interface MemoryHealth {
+  recheck: MemoryEntry[];
+  obsolete: MemoryEntry[];
+  stale: MemoryEntry[];
+  duplicates: [MemoryEntry, MemoryEntry][];
+}
+
+export interface RecallMatch {
+  entry: MemoryEntry;
+  by: 'signature' | 'similarity';
+  similarity?: number;
+  status: MemoryStatus;
+  reason?: string;
+}
+
+export interface Thresholds {
+  similarity: number;
+  similarity_text: number;
+  calibrated: boolean;
+}
+
+export interface RecallResult {
+  text: string;
+  tokens: number;
+  matches: RecallMatch[] | null;
+  nearest?: RecallMatch;
+  thresholds: Thresholds;
+}
+
+export interface SaveMemoryRequest {
+  kind: MemoryKind;
+  source?: string;
+  problem: string;
+  solution: string;
+  error?: string;
+  project?: string;
+  space?: string;
+  platform?: string;
+  versions?: string[];
+  tags?: string[];
 }
 
 export interface IngestEvent {
@@ -195,6 +334,8 @@ export interface Settings {
   chunk_overlap: number;
   index_workers: number;
   default_template: string;
+  memory_min_similarity: number;
+  memory_min_similarity_text: number;
   ocr_enabled: boolean;
   ocr_model: string;
   transcription_enabled: boolean;
@@ -278,6 +419,23 @@ export const api = {
   compact: () => request<IndexStats>('POST', v1('/index/compact')),
   checkpoint: () => request<IndexStats>('POST', v1('/index/save')),
 
+  memory: (p: { kind?: string; status?: string; space?: string; q?: string; limit?: number }) =>
+    request<{ entries: MemoryEntry[]; total: number }>('GET', v1(`/memory/${qs(p)}`)),
+  memoryEntry: (id: string) => request<{ entry: MemoryEntry | null; history: MemoryEvent[] }>('GET', v1(`/memory/${id}`)),
+  saveMemory: (r: SaveMemoryRequest) => request<{ entry: MemoryEntry; action: string }>('POST', v1('/memory/'), r),
+  recall: (r: { query?: string; error?: string; project?: string; k?: number; budget_tokens?: number; context?: Record<string, string> }) =>
+    request<RecallResult>('POST', v1('/memory/recall'), r),
+  updateMemory: (id: string, e: { kind?: MemoryKind; source?: string; problem?: string; solution?: string; status?: MemoryStatus; tags?: string[] }) =>
+    request<MemoryEntry>('PATCH', v1(`/memory/${id}`), e),
+  deleteMemory: (id: string) => request<unknown>('DELETE', v1(`/memory/${id}`)),
+  memoryFeedback: (id: string, worked: boolean) => request<MemoryEntry>('POST', v1(`/memory/${id}/feedback`), { worked }),
+  memoryStats: () => request<MemoryStats>('GET', v1('/memory/stats')),
+  memoryEvents: (limit = 300) => request<{ events: MemoryEvent[] }>('GET', v1(`/memory/events${qs({ limit })}`)),
+  memoryHealth: () => request<MemoryHealth>('GET', v1('/memory/health')),
+  memoryExportURL: v1('/memory/export'),
+
+  fileURL: (documentId: string) => v1(`/documents/${documentId}/file`),
+
   settings: () => request<Settings>('GET', v1('/settings')),
   saveSettings: (s: Partial<Settings>) =>
     request<{ restart_required: boolean; settings: Settings }>('PUT', v1('/settings'), s),
@@ -296,4 +454,34 @@ export async function mcp<T>(method: string, params?: unknown): Promise<T> {
   const data = (await res.json()) as { result?: T; error?: { message: string } };
   if (data.error) throw new ApiError(data.error.message, 400);
   return data.result as T;
+}
+
+export interface UploadResult {
+  name: string;
+  path?: string;
+  size?: number;
+  task_id?: string;
+  error?: string;
+}
+
+// upload sends files with progress (fetch cannot report upload progress).
+export function upload(files: File[], onProgress: (fraction: number) => void): Promise<UploadResult[]> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    for (const f of files) form.append('files', f, f.name);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/v1/upload');
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress(e.loaded / e.total);
+    xhr.onload = () => {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 400) reject(new ApiError(data.error ?? xhr.statusText, xhr.status));
+        else resolve(data.files ?? []);
+      } catch {
+        reject(new ApiError(xhr.statusText || 'upload failed', xhr.status));
+      }
+    };
+    xhr.onerror = () => reject(new ApiError('network error', 0));
+    xhr.send(form);
+  });
 }

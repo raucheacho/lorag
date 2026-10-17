@@ -22,7 +22,7 @@ func NewRouter(handler *Handler) http.Handler {
 	r.Use(middleware.Timeout(120 * time.Second))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins: []string{"http://localhost:*", "http://127.0.0.1:*"},
-		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowedHeaders: []string{"*"},
 		ExposedHeaders: []string{"Mcp-Session-Id"},
 		MaxAge:         300,
@@ -46,6 +46,7 @@ func NewRouter(handler *Handler) http.Handler {
 		})
 
 		r.Get("/ingestion", handler.Ingestion)
+		r.Post("/upload", handler.Upload)
 		r.Route("/queue", func(r chi.Router) {
 			r.Get("/stats", handler.GetQueueStats)
 			r.Get("/tasks/{id}", handler.GetTaskStatus)
@@ -64,6 +65,7 @@ func NewRouter(handler *Handler) http.Handler {
 				r.Delete("/", handler.DeleteDocument)
 				r.Post("/reindex", handler.ReindexDocument)
 				r.Get("/chunks", handler.GetDocumentChunks)
+				r.Get("/file", handler.DocumentFile)
 			})
 		})
 
@@ -71,6 +73,22 @@ func NewRouter(handler *Handler) http.Handler {
 			r.Get("/", handler.ListWatches)
 			r.Post("/", handler.AddWatch)
 			r.Delete("/{id}", handler.RemoveWatch)
+		})
+
+		r.Route("/memory", func(r chi.Router) {
+			r.Get("/", handler.ListMemory)
+			r.Post("/", handler.SaveMemory)
+			r.Post("/recall", handler.RecallMemory)
+			r.Get("/stats", handler.MemoryStats)
+			r.Get("/events", handler.MemoryEvents)
+			r.Get("/health", handler.MemoryHealth)
+			r.Get("/export", handler.ExportMemory)
+			r.Route("/{id}", func(r chi.Router) {
+				r.Get("/", handler.GetMemory)
+				r.Patch("/", handler.UpdateMemory)
+				r.Delete("/", handler.DeleteMemory)
+				r.Post("/feedback", handler.FeedbackMemory)
+			})
 		})
 
 		r.Get("/settings", handler.GetSettings)

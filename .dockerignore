@@ -45,7 +45,6 @@ docs/
 
 # CI/CD
 .github/
-.goreleaser.yaml
 
 # Misc
 *.md

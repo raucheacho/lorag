@@ -163,10 +163,10 @@ func (p *VideoParser) GetModelManager() *WhisperModelManager {
 }
 
 // maxKeyframes bounds the frames read on screen per video.
-const maxKeyframes = 60
+const maxKeyframes = 120
 
 // Segments returns the timed transcription of the audio track, merged in
-// time order with the text read on screen at scene changes.
+// time order with the text read on screen.
 func (p *VideoParser) Segments(path string) ([]Segment, error) {
 	if err := p.checkFFmpeg(); err != nil {
 		return nil, err
@@ -200,15 +200,21 @@ func (p *VideoParser) Segments(path string) ([]Segment, error) {
 
 var ptsTime = regexp.MustCompile(`pts_time:([0-9.]+)`)
 
-// keyframeText grabs a frame at each scene change (and the first one) and
-// reads its text with tesseract. Frames without readable text are dropped.
+// keyframeText reads the text on screen: a frame at each scene change and at
+// least one every interval (slides barely change the picture, so scene
+// detection alone misses them), read with tesseract. Frames without readable
+// text, or with the same text as before, are dropped.
 func keyframeText(path, dir string) []Segment {
 	if _, err := exec.LookPath("tesseract"); err != nil {
 		return nil
 	}
+	interval := 5.0
+	if d := duration(path); d/maxKeyframes > interval {
+		interval = d / maxKeyframes
+	}
 	cmd := exec.Command("ffmpeg", "-hide_banner", "-i", path,
-		"-vf", "select='eq(n\\,0)+gt(scene\\,0.3)',showinfo,scale='min(1600,iw)':-2",
-		"-vsync", "vfr", "-frames:v", strconv.Itoa(maxKeyframes),
+		"-vf", fmt.Sprintf("select='eq(n\\,0)+gt(scene\\,0.2)+gte(t-prev_selected_t\\,%.1f)',showinfo,scale='min(1600,iw)':-2", interval),
+		"-fps_mode", "vfr", "-frames:v", strconv.Itoa(maxKeyframes),
 		filepath.Join(dir, "frame_%03d.png"), "-y")
 	out, _ := cmd.CombinedOutput()
 	times := ptsTime.FindAllStringSubmatch(string(out), -1)
@@ -227,4 +233,14 @@ func keyframeText(path, dir string) []Segment {
 		segs = append(segs, Segment{Text: "On screen: " + text, StartMs: ms, EndMs: ms + 1, Offset: -1, Section: "screen"})
 	}
 	return segs
+}
+
+// duration returns the length of a media file in seconds, 0 when unknown.
+func duration(path string) float64 {
+	out, err := exec.Command("ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", path).Output()
+	if err != nil {
+		return 0
+	}
+	d, _ := strconv.ParseFloat(strings.TrimSpace(string(out)), 64)
+	return d
 }

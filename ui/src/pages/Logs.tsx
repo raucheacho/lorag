@@ -155,7 +155,11 @@ function QueryDrawer({ q, onClose }: { q: ActivityQuery; onClose: () => void }) 
         <table className="w-full table-fixed text-xs">
           <tbody>
             {q.hits.map((h, i) => (
-              <tr key={h.chunk_id} className="row" onClick={() => navigate(`/explorer/${h.document_id}`)}>
+              <tr
+                key={h.chunk_id}
+                className="row"
+                onClick={() => navigate(h.path.startsWith('memory/') ? `/memory?tab=entries&id=${h.chunk_id}` : `/explorer/${h.document_id}`)}
+              >
                 <td className="td w-10 text-right font-mono text-faint">{i + 1}</td>
                 <td className="td" title={h.path}>
                   <div className="flex min-w-0 items-baseline gap-2">

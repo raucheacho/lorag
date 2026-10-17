@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, FolderInput, Loader2, Plus, Trash2 } from 'lucide-react';
-import { api, ApiError, IngestEvent } from '../lib/api';
+import { Eye, FolderInput, Loader2, Plus, Trash2, UploadCloud } from 'lucide-react';
+import { api, ApiError, IngestEvent, upload, UploadResult } from '../lib/api';
 import { useResource } from '../lib/hooks';
-import { ago, clock, dateTime, ms, num, shortPath } from '../lib/format';
+import { ago, bytes, clock, dateTime, ms, num, shortPath } from '../lib/format';
 import { useOverview } from '../components/Shell';
 import { useToast } from '../components/toast';
 import { Badge, Button, Empty, ErrorLine, Input, PageHeader, Section, Segmented, Stat, Toggle } from '../components/ui';
@@ -91,6 +91,7 @@ export function IngestionPage() {
           <div className="border-t border-line px-4 py-2 text-xs text-faint">
             The path is read by the server, so it must exist on the machine running Lorag. Unchanged files are skipped.
           </div>
+          <DropZone onDone={() => { ingestion.reload(); overview.reload(); }} />
         </Section>
 
         <div className="grid grid-cols-2 divide-x divide-line rounded-lg border border-line bg-surface md:grid-cols-4">
@@ -195,6 +196,78 @@ export function IngestionPage() {
           )}
         </Section>
       </div>
+    </div>
+  );
+}
+
+// DropZone uploads dropped or picked files into the data directory, where
+// they are indexed like any other file.
+function DropZone({ onDone }: { onDone: () => void }) {
+  const toast = useToast();
+  const [over, setOver] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
+  const [results, setResults] = useState<UploadResult[]>([]);
+  const send = async (files: File[]) => {
+    if (!files.length) return;
+    setProgress(0);
+    try {
+      const res = await upload(files, setProgress);
+      setResults(res);
+      const ok = res.filter((r) => !r.error).length;
+      toast.ok(`${ok} of ${res.length} file${res.length > 1 ? 's' : ''} queued for indexing`);
+      onDone();
+    } catch (e) {
+      toast.error(e);
+    } finally {
+      setProgress(null);
+    }
+  };
+  return (
+    <div className="border-t border-line p-4">
+      <label
+        onDragOver={(e) => {
+          e.preventDefault();
+          setOver(true);
+        }}
+        onDragLeave={() => setOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setOver(false);
+          send(Array.from(e.dataTransfer.files));
+        }}
+        className={
+          'flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed px-4 py-6 text-center transition-colors ' +
+          (over ? 'border-accent bg-accent/5' : 'border-line-strong hover:border-faint')
+        }
+      >
+        <UploadCloud size={20} className={over ? 'text-accent' : 'text-faint'} />
+        <span className="text-[13px] font-medium">Drop files here, or click to choose</span>
+        <span className="text-xs text-faint">Documents, PDF, slides, sheets, code, audio, video, images. Copied into the data directory, then indexed.</span>
+        <input type="file" multiple className="hidden" onChange={(e) => send(Array.from(e.target.files ?? []))} />
+      </label>
+      {progress !== null && (
+        <div className="mt-3">
+          <div className="mb-1 flex justify-between text-2xs text-faint">
+            <span>Uploading…</span>
+            <span className="font-mono">{Math.round(progress * 100)}%</span>
+          </div>
+          <div className="h-1 rounded-full bg-raised">
+            <div className="h-1 rounded-full bg-accent transition-[width]" style={{ width: `${progress * 100}%` }} />
+          </div>
+        </div>
+      )}
+      {results.length > 0 && progress === null && (
+        <ul className="mt-3 space-y-1 text-xs">
+          {results.map((r) => (
+            <li key={r.name + (r.path ?? '')} className="flex items-center gap-2">
+              {r.error ? <Badge tone="bad">rejected</Badge> : <Badge tone="ok">queued</Badge>}
+              <span className="truncate font-mono">{r.name}</span>
+              {r.size !== undefined && <span className="text-faint">{bytes(r.size)}</span>}
+              {r.error && <span className="text-bad">{r.error}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

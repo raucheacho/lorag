@@ -1,165 +1,48 @@
 # Contributing to Lorag
 
-Thank you for your interest in contributing to Lorag! This document provides guidelines and instructions for contributing.
+## Before you start
 
-## Code of Conduct
+- [docs/STATUS.md](docs/STATUS.md) (in French): what is done, what is pending, known issues.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the daemon is built.
+- [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md): setup, commands, tests, recipes for common changes.
 
-Please be respectful and constructive in all interactions.
+The search engine is a separate project, [VectixDB](https://github.com/raucheacho/vectixdb), with its own development guide. Engine changes (storage, indexes, query features) go there. Lorag only uses the engine's generic API.
 
-## How to Contribute
+## Making a change
 
-### Reporting Bugs
+1. Branch from `main`.
+2. Write the code and its tests. For ranking or memory changes, also check with real models (see DEVELOPMENT.md, "Checking with real models and files").
+3. Run:
 
-- Check if the bug has already been reported in the [issues](https://github.com/lorag/lorag/issues)
-- If not, create a new issue with:
-  - A clear description of the bug
-  - Steps to reproduce
-  - Expected behavior
-  - Actual behavior
-  - Environment details (OS, Go version, etc.)
+   ```sh
+   go vet ./... && go test -race ./...
+   (cd ui && npx tsc --noEmit && npm run build)
+   ```
 
-### Suggesting Features
+4. Update the documentation the change touches:
 
-- Check if the feature has already been requested
-- Create a new issue with the "feature request" label
-- Describe the feature and its use case
-- Explain why it would be useful
+   | Change | Documentation |
+   | --- | --- |
+   | REST API | `docs/API.md` |
+   | MCP tools | `docs/MCP.md` |
+   | Memory | `docs/MEMORY.md` |
+   | File types | `docs/MEDIA_INDEXING.md` |
+   | Studio screens | `USER_GUIDE.md` |
+   | Decisions and known issues | `docs/STATUS.md` |
 
-### Pull Requests
+5. Commit with a short message in French, lowercase, without prefix (`ajout du filtre par type`).
 
-1. Fork the repository
-2. Create a new branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Add or update tests as needed
-5. Ensure tests pass (`make test`)
-6. Commit your changes (`git commit -m 'Add amazing feature'`)
-7. Push to the branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
+## Code style
 
-## Development Setup
+- **Go.** `gofmt` the files you touch; comments explain why; errors are wrapped with context.
+- **TypeScript.** Strict mode. Build screens from the primitives in `ui/src/components/` (Select, NumberField, InputShell, Button with `tip`, Drawer), not from native form controls.
+- **Agent-facing text** (tool descriptions, MCP instructions, recall format). It is part of the product: keep it short, precise and in English, and measure its size in tokens when it is returned to agents.
 
-### Prerequisites
+## Reporting a bug
 
-- Go 1.22+
-- Node.js 18+ (for UI development)
-- Make
-
-### Setup
-
-```bash
-# Clone your fork
-git clone https://github.com/yourusername/lorag.git
-cd lorag
-
-# Install dependencies
-make install
-
-# Run tests
-make test
-
-# Build
-make build
-
-# Run server
-make run
-```
-
-### Project Structure
-
-```
-lorag/
-├── cmd/              # Entry points
-│   ├── lorag/        # Main server
-│   └── loragctl/     # CLI tool
-├── internal/         # Internal packages
-│   ├── api/          # REST and MCP APIs
-│   ├── core/         # Core RAG functionality
-│   ├── embeddings/   # Embedding providers
-│   ├── parsers/      # Document parsers
-│   └── watcher/      # File system watcher
-├── web/              # React web UI
-├── docs/             # Documentation
-└── examples/         # Example code
-```
-
-## Coding Standards
-
-### Go Code
-
-- Follow the [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
-- Use `gofmt` to format code
-- Use meaningful variable names
-- Add comments for exported functions
-- Keep functions focused and small
-- Write tests for new functionality
-
-### TypeScript/React Code
-
-- Follow the existing code style
-- Use TypeScript for type safety
-- Use functional components with hooks
-- Keep components small and focused
-- Add PropTypes or TypeScript interfaces
-
-### Commit Messages
-
-- Use the present tense ("Add feature" not "Added feature")
-- Use the imperative mood ("Move cursor to..." not "Moves cursor to...")
-- Limit the first line to 72 characters or less
-- Reference issues and pull requests liberally after the first line
-
-Example:
-
-```
-Add fuzzy search to document listing
-
-- Implement Levenshtein distance algorithm
-- Add fuzzy matching to search API
-- Update UI to show fuzzy match scores
-
-Fixes #123
-```
-
-## Testing
-
-### Running Tests
-
-```bash
-# Run all tests
-make test
-
-# Run with coverage
-make test-coverage
-
-# Run specific test
-go test ./internal/core/... -v
-```
-
-### Writing Tests
-
-- Add tests for new functionality
-- Use table-driven tests where appropriate
-- Mock external dependencies
-- Test both success and error cases
-- Aim for good coverage, but focus on critical paths
-
-## Documentation
-
-- Update README.md if you change functionality
-- Add documentation for new features
-- Update API.md for API changes
-- Update MCP.md for protocol changes
-
-## Release Process
-
-1. Update version in relevant files
-2. Update CHANGELOG.md
-3. Create a new release on GitHub
-4. CI will build and publish artifacts
-
-## Questions?
-
-Feel free to open an issue for questions or join our Discord community.
-
-Thank you for contributing to Lorag!
-je fais montest
+Open an issue with:
+- what you did;
+- what you expected;
+- what happened;
+- the Lorag version (`lorag version`), the OS, the embedding model;
+- when relevant, the Agent logs entry or a Test a recall screenshot.

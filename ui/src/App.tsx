@@ -3,6 +3,7 @@ import { Shell } from './components/Shell';
 import { ToastProvider } from './components/toast';
 import { OverviewPage } from './pages/Overview';
 import { ExplorerPage } from './pages/Explorer';
+import { MemoryPage } from './pages/Memory';
 import { PlaygroundPage } from './pages/Playground';
 import { LogsPage } from './pages/Logs';
 import { IngestionPage } from './pages/Ingestion';
@@ -16,6 +17,7 @@ export default function App() {
         <Shell>
           <Routes>
             <Route path="/" element={<OverviewPage />} />
+            <Route path="/memory" element={<MemoryPage />} />
             <Route path="/explorer" element={<ExplorerPage />} />
             <Route path="/explorer/:id" element={<ExplorerPage />} />
             <Route path="/playground" element={<PlaygroundPage />} />

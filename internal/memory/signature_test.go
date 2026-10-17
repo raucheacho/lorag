@@ -68,3 +68,18 @@ func TestMaskSecrets(t *testing.T) {
 		}
 	}
 }
+
+func TestExactNeedles(t *testing.T) {
+	for in, want := range map[string]string{
+		"Error: ECONNRESET: socket hang up":               "ECONNRESET: socket hang up",
+		"TypeError: Cannot read properties of undefined":  "Cannot read properties of undefined",
+		"npm ERR! code ERESOLVE":                          "code ERESOLVE",
+		"error[E0382]: borrow of moved value: `x`":        "borrow of moved value: `x`",
+		"Uncaught ReferenceError: process is not defined": "process is not defined",
+	} {
+		got := ExactNeedles(in)
+		if len(got) != 2 || got[1] != want {
+			t.Errorf("ExactNeedles(%q) = %q, want second %q", in, got, want)
+		}
+	}
+}

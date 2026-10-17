@@ -20,6 +20,9 @@
   --ok: 22 163 74;
   --warn: 202 138 4;
   --bad: 220 38 38;
+  /* Chart series, validated for contrast and color-vision deficiency. */
+  --series-1: 42 120 214;
+  --series-2: 235 104 52;
   color-scheme: light;
 }
 
@@ -39,6 +42,8 @@
   --ok: 74 222 128;
   --warn: 250 204 21;
   --bad: 248 113 113;
+  --series-1: 57 135 229;
+  --series-2: 217 89 38;
   color-scheme: dark;
 }
 

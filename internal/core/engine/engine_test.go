@@ -266,3 +266,16 @@ func TestConcurrentSearchDuringRebuild(t *testing.T) {
 		t.Fatalf("Len = %d", e.Len())
 	}
 }
+
+func TestModelChangeStartsNewGeneration(t *testing.T) {
+	dir := t.TempDir()
+	e, _ := Open(Config{Dir: dir, Dim: 4, Model: "model-a"})
+	e.Put(Chunk{ID: "a", Content: "alpha", Vector: []float32{1, 0, 0, 0}})
+	e.Close()
+	// Same dimension, another model: the old vectors must not be reused.
+	e, _ = Open(Config{Dir: dir, Dim: 4, Model: "model-b"})
+	defer e.Close()
+	if e.Len() != 0 {
+		t.Fatal("vectors of another model kept")
+	}
+}

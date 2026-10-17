@@ -31,6 +31,23 @@ var normalizers = []struct {
 // the first line mentioning an error, else the first non-empty line.
 var errorWord = regexp.MustCompile(`(?i)\b(error|exception|fail(ed|ure)?|panic|fatal|cannot|can't|unable|not found|denied|refused|undefined|invalid)\b|\b[A-Z]{1,5}_?[A-Z0-9_]*\d{2,}\b|\bE[A-Z]{3,}\b`)
 
+var errorPrefix = regexp.MustCompile(`(?i)^\W*(?:(?:npm|yarn|pnpm)\s+)?(?:(?:uncaught|unhandled)\s+)?(?:[\w.$]*(?:error|exception)|\[?(?:err!|err\b|fatal|panic|warn(?:ing)?)\]?)\s*(?:\[[^\]]*\])?\s*:?\s*`)
+
+// ExactNeedles returns the strings to look for verbatim, most specific
+// first: the error line, then the same without its "Error:" or
+// "npm ERR!" prefix, which logs and documents often omit.
+func ExactNeedles(text string) []string {
+	line := strings.TrimSpace(errorLine(text))
+	out := []string{line}
+	if bare := strings.TrimSpace(errorPrefix.ReplaceAllString(line, "")); len(bare) >= 8 && bare != line {
+		out = append(out, bare)
+	}
+	return out
+}
+
+// ErrorLine returns the line of text that states the error.
+func ErrorLine(text string) string { return errorLine(text) }
+
 func errorLine(text string) string {
 	var first string
 	for _, l := range strings.Split(text, "\n") {
@@ -83,14 +100,14 @@ func LooksLikeError(text string) bool {
 // must not store an API key in its memory.
 var secrets = []*regexp.Regexp{
 	regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----`),
-	regexp.MustCompile(`\b(sk|pk|rk)-(live|test|proj|ant)?[-_]?[A-Za-z0-9_\-]{16,}`),
+	regexp.MustCompile(`\b(sk|pk|rk)[-_](live|test|proj|ant)?[-_]?[A-Za-z0-9_\-]{16,}`),
 	regexp.MustCompile(`\b(ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{20,}`),
 	regexp.MustCompile(`\bxox[abprs]-[A-Za-z0-9\-]{10,}`),
 	regexp.MustCompile(`\bAKIA[0-9A-Z]{16}\b`),
 	regexp.MustCompile(`\bAIza[0-9A-Za-z_\-]{35}\b`),
 	regexp.MustCompile(`\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}`),
 	regexp.MustCompile(`(?i)\b(bearer)\s+[A-Za-z0-9._\-]{16,}`),
-	regexp.MustCompile(`(?i)\b(password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret)(\s*[:=]\s*|\s+)["']?[^\s"']{6,}`),
+	regexp.MustCompile(`(?i)\b[\w.\-]*(password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key)[\w.\-]*(\s*[:=]\s*)["']?[^\s"']{6,}`),
 	regexp.MustCompile(`(?i)\b[a-z][a-z0-9+.\-]*://[^\s/:@]+:[^\s/@]+@`),
 }
 

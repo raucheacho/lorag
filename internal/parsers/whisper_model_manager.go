@@ -54,10 +54,14 @@ func (m *WhisperModelManager) SetProgressCallback(cb DownloadProgress) {
 	m.progressCallback = cb
 }
 
+// downloads serializes model downloads across managers: parsers create
+// their own manager, and audio and video files are indexed in parallel.
+var downloads sync.Map // model path → *sync.Mutex
+
 // GetStatus returns the current status of a model
 func (m *WhisperModelManager) GetStatus(model WhisperModel) ModelStatus {
-	m.statusMutex.RLock()
-	defer m.statusMutex.RUnlock()
+	m.statusMutex.Lock()
+	defer m.statusMutex.Unlock()
 	
 	if status, ok := m.status[model]; ok {
 		return status
@@ -83,12 +87,12 @@ func (m *WhisperModelManager) setStatus(model WhisperModel, status ModelStatus) 
 // GetModelPath returns the path to a model, downloading it if necessary
 func (m *WhisperModelManager) GetModelPath(model WhisperModel) (string, error) {
 	modelPath := filepath.Join(m.dataDir, "models", string(model))
-	
-	// Check if already downloading
-	if m.GetStatus(model) == ModelStatusDownloading {
-		return "", fmt.Errorf("model %s is currently being downloaded", model)
-	}
-	
+
+	// One download per model: later callers wait, then find the file.
+	lock, _ := downloads.LoadOrStore(modelPath, &sync.Mutex{})
+	lock.(*sync.Mutex).Lock()
+	defer lock.(*sync.Mutex).Unlock()
+
 	// Check if model exists
 	if _, err := os.Stat(modelPath); err == nil {
 		m.setStatus(model, ModelStatusReady)
@@ -130,12 +134,12 @@ func (m *WhisperModelManager) downloadModel(model WhisperModel, destPath string)
 	
 	totalSize := resp.ContentLength
 	
-	// Create temporary file
-	tmpFile := destPath + ".tmp"
-	out, err := os.Create(tmpFile)
+	// Temporary file next to the destination, renamed once complete.
+	out, err := os.CreateTemp(filepath.Dir(destPath), filepath.Base(destPath)+".*.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
+	tmpFile := out.Name()
 	
 	// Copy with progress tracking
 	var written int64
@@ -165,8 +169,11 @@ func (m *WhisperModelManager) downloadModel(model WhisperModel, destPath string)
 			break
 		}
 	}
-	out.Close()
-	
+	if err := out.Close(); err != nil {
+		os.Remove(tmpFile)
+		return fmt.Errorf("failed to write model: %w", err)
+	}
+
 	// Rename to final destination
 	if err := os.Rename(tmpFile, destPath); err != nil {
 		os.Remove(tmpFile)

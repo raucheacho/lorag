@@ -1,136 +1,100 @@
-#!/bin/bash
+#!/bin/sh
+# Installs lorag and loragctl from the GitHub releases:
+#   curl -fsSL https://raw.githubusercontent.com/raucheacho/lorag/main/scripts/install.sh | sh
+#   ... | sh -s -- --service     also start Lorag with the session (systemd, Linux)
 #
-# Lorag Installation Script
-#
+# Environment:
+#   LORAG_VERSION       version to install (default: the latest release)
+#   LORAG_INSTALL_DIR   where the binaries go (default: ~/.local/bin)
+#   LORAG_DOWNLOAD_URL  a mirror holding the archives and SHA256SUMS
+set -eu
 
-set -e
+repo=${LORAG_REPO:-raucheacho/lorag}
+dir=${LORAG_INSTALL_DIR:-$HOME/.local/bin}
+service=false
+for arg in "$@"; do
+    case "$arg" in
+        --service) service=true ;;
+        *) echo "unknown option: $arg" >&2; exit 2 ;;
+    esac
+done
 
-REPO="lorag/lorag"
-INSTALL_DIR="/usr/local/bin"
+fail() { echo "error: $*" >&2; exit 1; }
+command -v curl >/dev/null 2>&1 || fail "curl is required"
 
-# Detect OS and architecture
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-ARCH=$(uname -m)
-
-case "$ARCH" in
-    x86_64)
-        ARCH="amd64"
-        ;;
-    arm64|aarch64)
-        ARCH="arm64"
-        ;;
-    *)
-        echo "Unsupported architecture: $ARCH"
-        exit 1
-        ;;
+case "$(uname -s)" in
+    Darwin) os=darwin ;;
+    Linux) os=linux ;;
+    *) fail "unsupported system: $(uname -s) (Lorag runs on macOS and Linux)" ;;
+esac
+case "$(uname -m)" in
+    x86_64 | amd64) arch=amd64 ;;
+    arm64 | aarch64) arch=arm64 ;;
+    *) fail "unsupported architecture: $(uname -m)" ;;
 esac
 
-echo "Detected OS: $OS, Architecture: $ARCH"
+version=${LORAG_VERSION:-}
+if [ -z "$version" ]; then
+    version=$(curl -fsSL "https://api.github.com/repos/$repo/releases/latest" |
+        sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)
+    [ -n "$version" ] || fail "cannot find the latest release of $repo"
+fi
+version=${version#v}
 
-# Get latest release
-get_latest_release() {
-    curl --silent "https://api.github.com/repos/$REPO/releases/latest" | \
-        grep '"tag_name":' | \
-        sed -E 's/.*"([^"]+)".*/\1/'
-}
+name="lorag_${version}_${os}_${arch}"
+base=${LORAG_DOWNLOAD_URL:-https://github.com/$repo/releases/download/v$version}
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
 
-VERSION=$(get_latest_release)
-echo "Latest version: $VERSION"
+echo "Downloading Lorag $version ($os/$arch)"
+curl -fsSL -o "$tmp/$name.tar.gz" "$base/$name.tar.gz" || fail "download failed: $base/$name.tar.gz"
+curl -fsSL -o "$tmp/SHA256SUMS" "$base/SHA256SUMS" || fail "download failed: $base/SHA256SUMS"
 
-# Download binaries
-download() {
-    local binary=$1
-    local url="https://github.com/$REPO/releases/download/$VERSION/${binary}_${OS}_${ARCH}.tar.gz"
-    
-    echo "Downloading $binary..."
-    curl -L -o "/tmp/${binary}.tar.gz" "$url"
-    
-    echo "Extracting $binary..."
-    tar -xzf "/tmp/${binary}.tar.gz" -C /tmp
-    
-    echo "Installing $binary..."
-    sudo mv "/tmp/$binary" "$INSTALL_DIR/"
-    sudo chmod +x "$INSTALL_DIR/$binary"
-    
-    rm "/tmp/${binary}.tar.gz"
-}
+expected=$(awk -v f="$name.tar.gz" '$2 == f { print $1 }' "$tmp/SHA256SUMS")
+if command -v sha256sum >/dev/null 2>&1; then
+    actual=$(sha256sum "$tmp/$name.tar.gz" | cut -d' ' -f1)
+else
+    actual=$(shasum -a 256 "$tmp/$name.tar.gz" | cut -d' ' -f1)
+fi
+[ -n "$expected" ] && [ "$expected" = "$actual" ] || fail "checksum mismatch for $name.tar.gz"
 
-# Install binaries
-install_binaries() {
-    download "lorag"
-    download "loragctl"
-}
+tar -xzf "$tmp/$name.tar.gz" -C "$tmp"
+mkdir -p "$dir"
+install -m 755 "$tmp/$name/lorag" "$tmp/$name/loragctl" "$dir/"
+echo "Installed lorag and loragctl in $dir"
 
-# Create data directory
-create_data_dir() {
-    echo "Creating data directory..."
-    sudo mkdir -p /var/lib/lorag
-    sudo chmod 755 /var/lib/lorag
-}
+case ":$PATH:" in
+    *":$dir:"*) ;;
+    *) echo "Add $dir to your PATH, e.g.: echo 'export PATH=\"$dir:\$PATH\"' >> ~/.profile" ;;
+esac
 
-# Create systemd service (Linux only)
-create_service() {
-    if [ "$OS" != "linux" ]; then
-        return
-    fi
-    
-    echo "Creating systemd service..."
-    
-    sudo tee /etc/systemd/system/lorag.service > /dev/null <<EOF
+if $service; then
+    [ "$os" = linux ] || fail "--service is for Linux; on macOS use Homebrew: brew services start lorag"
+    command -v systemctl >/dev/null 2>&1 || fail "systemd is not available"
+    unit="$HOME/.config/systemd/user/lorag.service"
+    mkdir -p "$(dirname "$unit")"
+    cat >"$unit" <<EOF
 [Unit]
-Description=Lorag - Local RAG Engine
+Description=Lorag, local memory for AI agents
 After=network.target
 
 [Service]
-Type=simple
-User=lorag
-Group=lorag
-WorkingDirectory=/var/lib/lorag
-Environment=LORAG_DATA_DIR=/var/lib/lorag/data
-Environment=LORAG_HOST=0.0.0.0
-Environment=LORAG_PORT=8080
-ExecStart=/usr/local/bin/lorag server
+ExecStart=$dir/lorag server
 Restart=on-failure
-RestartSec=5
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 EOF
-    
-    # Create lorag user
-    if ! id -u lorag &>/dev/null; then
-        sudo useradd -r -s /bin/false -d /var/lib/lorag lorag
-    fi
-    
-    sudo chown -R lorag:lorag /var/lib/lorag
-    sudo systemctl daemon-reload
-    
-    echo "Service created. Start with: sudo systemctl start lorag"
-    echo "Enable on boot with: sudo systemctl enable lorag"
-}
+    systemctl --user daemon-reload
+    systemctl --user enable --now lorag
+    echo "Lorag runs as a user service: systemctl --user status lorag"
+fi
 
-# Main installation
-main() {
-    echo "Installing Lorag..."
-    echo ""
-    
-    install_binaries
-    create_data_dir
-    create_service
-    
-    echo ""
-    echo "Installation complete!"
-    echo ""
-    echo "Verify installation:"
-    echo "  lorag version"
-    echo "  loragctl version"
-    echo ""
-    echo "Start the server:"
-    echo "  lorag server"
-    echo ""
-    echo "Or use systemd (Linux):"
-    echo "  sudo systemctl start lorag"
-}
+cat <<EOF
 
-# Run installation
-main
+Next:
+  ollama pull bge-m3        # embeddings (https://ollama.com)
+  lorag server              # unless installed with --service
+  open http://localhost:8080
+Data is stored in ~/.lorag/data.
+EOF

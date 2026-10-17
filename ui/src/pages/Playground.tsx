@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Columns, CornerDownLeft, History, Play, X } from 'lucide-react';
 import { api, Filter, Mode, SearchRequest, SearchResponse, SearchResult } from '../lib/api';
 import { useHotkey, useStored } from '../lib/hooks';
-import { dirname, ms, num, shortPath } from '../lib/format';
+import { dirname, location, ms, num, shortPath } from '../lib/format';
+import { LocationBadge, OpenAt } from '../components/source';
 import { Badge, bareInput, Button, CopyButton, cx, Drawer, Empty, InputShell, KV, modKey, NumberField, PageHeader, Segmented, Select, Toggle } from '../components/ui';
 
 const RRF_K = 60;
@@ -11,6 +12,7 @@ const modes: { value: Mode; label: string; title: string }[] = [
   { value: 'hybrid', label: 'Hybrid', title: 'Vector and BM25, fused with reciprocal rank fusion' },
   { value: 'vector', label: 'Vector', title: 'Embedding similarity only' },
   { value: 'keyword', label: 'Keyword', title: 'BM25 full text only' },
+  { value: 'exact', label: 'Exact', title: 'Chunks containing the text verbatim: exhaustive, for error messages and identifiers' },
 ];
 
 interface Run {
@@ -29,7 +31,7 @@ export function PlaygroundPage() {
   const [path, setPath] = useState(params.get('path') ?? '');
   const [compare, setCompare] = useStored('lorag.pg.compare', false);
   const [history, setHistory] = useStored<string[]>('lorag.pg.history', []);
-  const [runs, setRuns] = useState<Record<Mode, Run | undefined>>({ hybrid: undefined, vector: undefined, keyword: undefined });
+  const [runs, setRuns] = useState<Partial<Record<Mode, Run>>>({});
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<{ mode: Mode; r: SearchResult } | null>(null);
   const editor = useRef<HTMLTextAreaElement>(null);
@@ -57,7 +59,7 @@ export function PlaygroundPage() {
         }
       }),
     );
-    setRuns({ hybrid: undefined, vector: undefined, keyword: undefined, ...Object.fromEntries(out) });
+    setRuns(Object.fromEntries(out));
     setHistory([q, ...history.filter((h) => h !== q)].slice(0, 12));
     setParams((p) => {
       p.set('q', q);
@@ -262,7 +264,7 @@ function Results({ run, onSelect, selected }: { run: Run; onSelect: (r: SearchRe
                 <td className="td whitespace-normal py-2">
                   <div className="flex min-w-0 items-baseline gap-2 text-xs">
                     <span className="shrink-0 font-medium">{r.source.filename}</span>
-                    <span className="shrink-0 font-mono text-2xs text-faint">#{r.source.position}</span>
+                    <LocationBadge p={r.source} />
                     <span className="min-w-0 truncate font-mono text-2xs text-faint" title={r.source.path}>
                       {shortPath(dirname(r.source.path), 60)}
                     </span>
@@ -287,6 +289,7 @@ function rrfParts(r: SearchResult) {
 }
 
 function ScoreCell({ r, mode }: { r: SearchResult; mode: Mode }) {
+  if (mode === 'exact') return <Badge tone="accent">verbatim</Badge>;
   if (mode !== 'hybrid') {
     const tone = mode === 'vector' ? 'bg-vector' : 'bg-keyword';
     const width = mode === 'vector' ? Math.max(0, Math.min(1, r.score)) : Math.min(1, r.score / 20);
@@ -311,7 +314,7 @@ function ScoreCell({ r, mode }: { r: SearchResult; mode: Mode }) {
   );
 }
 
-function Compare({ runs, onSelect, selected }: { runs: Record<Mode, Run | undefined>; onSelect: (m: Mode, r: SearchResult) => void; selected?: string }) {
+function Compare({ runs, onSelect, selected }: { runs: Partial<Record<Mode, Run>>; onSelect: (m: Mode, r: SearchResult) => void; selected?: string }) {
   // Chunks found by only one route are the interesting ones: mark them.
   const seen = new Map<string, number>();
   for (const m of ['hybrid', 'vector', 'keyword'] as Mode[])
@@ -357,8 +360,8 @@ function ResultDrawer({ sel, onClose }: { sel: { mode: Mode; r: SearchResult }; 
     <Drawer
       open
       onClose={onClose}
-      title={`${r.source.filename} · chunk ${r.source.position}`}
-      subtitle={r.source.path}
+      title={`${r.source.filename}${location(r.source) ? ` · ${location(r.source)}` : ` · chunk ${r.source.position}`}`}
+      subtitle={r.source.section ? `${r.source.section} — ${r.source.path}` : r.source.path}
       actions={
         <Link to={`/explorer/${r.document_id}`} className="text-xs text-accent hover:underline">
           Open document
@@ -375,6 +378,8 @@ function ResultDrawer({ sel, onClose }: { sel: { mode: Mode; r: SearchResult }; 
               score = (1/(60+r<sub>v</sub>) + 1/(60+r<sub>k</sub>)) ÷ (2/61) = <span className="text-fg">{r.score.toFixed(4)}</span>
             </div>
           </div>
+        ) : mode === 'exact' ? (
+          <div className="font-mono text-xs text-muted">Contains the query verbatim. The exact route is exhaustive: every matching chunk is listed, in index order.</div>
         ) : (
           <div className="font-mono text-xs text-muted">
             {mode === 'vector' ? `Cosine similarity ${r.score.toFixed(4)} (rank ${r.vector?.rank ?? '–'})` : `BM25 ${r.score.toFixed(3)} (rank ${r.keyword?.rank ?? '–'})`}
@@ -385,9 +390,11 @@ function ResultDrawer({ sel, onClose }: { sel: { mode: Mode; r: SearchResult }; 
         rows={[
           ['Chunk ID', <span className="flex items-center justify-between gap-2">{r.chunk_id}<CopyButton text={r.chunk_id} /></span>],
           ['Document ID', r.document_id],
-          ['Bytes', `${num(r.source.start_byte)}–${num(r.source.end_byte)}`],
+          ...(location(r.source) ? ([['Position', location(r.source)]] as [string, string][]) : []),
+          ...(r.source.start_byte >= 0 && r.source.end_byte > 0 ? ([['Bytes', `${num(r.source.start_byte)}–${num(r.source.end_byte)}`]] as [string, string][]) : []),
         ]}
       />
+      <OpenAt documentId={r.document_id} p={r.source} className="block px-4 pt-3" />
       <div className="flex items-center justify-between px-4 pb-1 pt-3">
         <span className="text-2xs font-medium uppercase tracking-wide text-faint">Content returned to the agent</span>
         <CopyButton text={r.content} />

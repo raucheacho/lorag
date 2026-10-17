@@ -127,6 +127,10 @@ type AppSettings struct {
 	// MCP output template
 	DefaultTemplate string `json:"default_template"`
 
+	// Memory recall thresholds (0: calibrated defaults for the embedding model)
+	MemoryMinSimilarity     float64 `json:"memory_min_similarity"`
+	MemoryMinSimilarityText float64 `json:"memory_min_similarity_text"`
+
 	// OCR & Vision
 	OcrEnabled           bool   `json:"ocr_enabled"`
 	OcrModel             string `json:"ocr_model"`
@@ -140,9 +144,9 @@ func DefaultSettings() *AppSettings {
 		Host:                 "localhost",
 		Port:                 8080,
 		EmbeddingProvider:    "ollama",
-		EmbeddingModel:       "nomic-embed-text",
+		EmbeddingModel:       "bge-m3", // multilingual (French, Arabic…); see docs/MEMORY.md
 		EmbeddingURL:         "http://localhost:11434",
-		EmbeddingDim:         768,
+		EmbeddingDim:         1024,
 		VectorMetric:         "cosine",
 		VectorM:              16,
 		VectorEf:             200,

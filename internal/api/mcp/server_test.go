@@ -17,6 +17,7 @@ import (
 	"github.com/lorag/lorag/internal/core/indexer"
 	"github.com/lorag/lorag/internal/core/query"
 	"github.com/lorag/lorag/internal/core/store"
+	"github.com/lorag/lorag/internal/memory"
 )
 
 const dim = 32
@@ -80,7 +81,13 @@ func newFixture(t *testing.T) *fixture {
 	idx := indexer.NewIndexer(st, settings, eng, emb, indexer.Config{MaxChunks: 1000, ChunkSize: 400, ChunkOverlap: 0})
 	log := activity.NewLog(100)
 	qe := query.NewEngine(st, eng, emb, log)
-	srv := httptest.NewServer(http.HandlerFunc(NewServer(st, settings, idx, qe, "test").Handle))
+	mem, err := memory.Open(eng.DB(), emb, dim, memory.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(NewServer(Deps{
+		Store: st, Settings: settings, Indexer: idx, Query: qe, Memory: mem, Activity: log, Version: "test",
+	}).Handle))
 	t.Cleanup(srv.Close)
 	return &fixture{t: t, srv: srv, dir: t.TempDir(), log: log}
 }
@@ -161,7 +168,7 @@ func TestProtocol(t *testing.T) {
 	}
 
 	tools := f.rpc("tools/list", nil)["tools"].([]any)
-	if len(tools) != 4 {
+	if len(tools) != 7 {
 		t.Fatalf("tools: %v", tools)
 	}
 
@@ -241,5 +248,86 @@ func TestIndexSearchReindex(t *testing.T) {
 	stats, _ := f.call("get_stats", nil)
 	if !strings.Contains(stats, `"documents": 3`) {
 		t.Fatalf("stats: %s", stats)
+	}
+}
+
+func TestMemoryWorkflow(t *testing.T) {
+	f := newFixture(t)
+	f.rpc("initialize", map[string]any{"clientInfo": map[string]string{"name": "codex"}})
+	errA := "Error: listen EADDRINUSE: address already in use :::3000\n    at Server.setupListenHandle [as _listen2] (node:net:1817:16)"
+
+	text, _ := f.call("memory_recall", map[string]any{"error": errA})
+	if text != "No memory for this problem." {
+		t.Fatalf("recall before save: %q", text)
+	}
+	text, isErr := f.call("memory_save", map[string]any{
+		"problem": "dev server port 3000 already in use", "error": errA,
+		"solution": "lsof -ti :3000 | xargs kill -9, then npm run dev", "project": "shop",
+		"versions": []string{"node@22"}, "solve_tokens": 3000,
+	})
+	if isErr || !strings.HasPrefix(text, "Saved fix [") || !strings.Contains(text, "in shop") {
+		t.Fatalf("save: %q", text)
+	}
+	id := text[strings.Index(text, "[")+1 : strings.Index(text, "]")]
+
+	// Same error, another port and line number: found by signature.
+	errB := "Error: listen EADDRINUSE: address already in use :::3001\n    at Server.setupListenHandle (node:net:1900:7)"
+	text, _ = f.call("memory_recall", map[string]any{"error": errB, "project": "shop", "context": map[string]string{"node": "22.4.0"}})
+	if !strings.HasPrefix(text, "["+id+"] +1/-0") || !strings.Contains(text, "Fix: lsof -ti :3000") || strings.Contains(text, "RECHECK") {
+		t.Fatalf("recall: %q", text)
+	}
+	if memory.EstimateTokens(text) > 40 {
+		t.Fatalf("recall too long (%d tokens): %q", memory.EstimateTokens(text), text)
+	}
+	text, _ = f.call("memory_feedback", map[string]any{"id": "[" + id + "]", "worked": true})
+	if !strings.Contains(text, "is valid (+2/-0)") {
+		t.Fatalf("feedback: %q", text)
+	}
+	// Other projects do not see it.
+	if text, _ = f.call("memory_recall", map[string]any{"error": errB, "project": "blog"}); text != "No memory for this problem." {
+		t.Fatalf("leak to another project: %q", text)
+	}
+	if _, isErr := f.call("memory_feedback", map[string]any{"id": id}); !isErr {
+		t.Fatal("feedback without worked accepted")
+	}
+
+	// Knowledge found after a web search, recalled instead of searching again.
+	text, _ = f.call("memory_save", map[string]any{
+		"kind": "knowledge", "problem": "node version supported by expo SDK 52",
+		"solution": "Node 18.18 or newer; Node 20 LTS recommended", "source": "https://docs.expo.dev/versions/v52.0.0/",
+	})
+	if !strings.HasPrefix(text, "Saved knowledge [") {
+		t.Fatalf("save knowledge: %q", text)
+	}
+	text, _ = f.call("memory_recall", map[string]any{"query": "node version supported by expo SDK 52", "budget_tokens": 120})
+	if !strings.Contains(text, "Answer: Node 18.18 or newer") || !strings.Contains(text, "Src: docs.expo.dev/…/v52.0.0") {
+		t.Fatalf("recall knowledge: %q", text)
+	}
+
+	q := f.log.List(activity.Filter{})
+	if len(q) == 0 || q[0].Tool != "memory_recall" || q[0].Client != "codex" {
+		t.Fatalf("activity: %+v", q[0])
+	}
+	stats, _ := f.call("get_stats", nil)
+	if !strings.Contains(stats, `"entries": 2`) {
+		t.Fatalf("stats: %s", stats)
+	}
+}
+
+func TestSearchErrorVerbatimAndPositions(t *testing.T) {
+	f := newFixture(t)
+	f.rpc("initialize", map[string]any{})
+	notes := "# Runbook\n\n## Deploy\n\nRun make deploy.\n\n## Known errors\n\nIf you see `ECONNRESET: socket hang up` from the proxy, restart the sidecar.\n"
+	path := f.write("runbook.md", notes)
+	if text, isErr := f.call("ingest", map[string]any{"path": path}); isErr {
+		t.Fatal(text)
+	}
+	text, _ := f.call("search", map[string]any{"query": "Error: ECONNRESET: socket hang up"})
+	if !strings.Contains(text, "Note: matched verbatim: ECONNRESET: socket hang up") || !strings.Contains(text, "runbook.md L1-9 · Runbook") {
+		t.Fatalf("search: %q", text)
+	}
+	text, _ = f.call("search", map[string]any{"query": "Error: EPIPE broken pipe on upload"})
+	if !strings.Contains(text, "no verbatim match") {
+		t.Fatalf("fallback note missing: %q", text)
 	}
 }

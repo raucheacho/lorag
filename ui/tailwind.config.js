@@ -22,6 +22,8 @@ export default {
         ok: token('ok'),
         warn: token('warn'),
         bad: token('bad'),
+        'series-1': token('series-1'),
+        'series-2': token('series-2'),
       },
       fontFamily: {
         sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],

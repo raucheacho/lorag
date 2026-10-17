@@ -409,8 +409,8 @@ func sheetSegments(path string) ([]Segment, error) {
 		var ws struct {
 			Rows []struct {
 				Cells []struct {
-					T string `xml:"t,attr"`
-					V string `xml:"v"`
+					T  string `xml:"t,attr"`
+					V  string `xml:"v"`
 					IS struct {
 						T string `xml:"t"`
 					} `xml:"is"`

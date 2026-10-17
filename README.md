@@ -1,231 +1,119 @@
-# Lorag — Local RAG + MCP Engine
+# Lorag
 
-<p align="center">
-  <h1 align="center">🧠 Lorag</h1>
-  <p align="center"><strong>La mémoire locale universelle pour agents IA</strong></p>
-  <p align="center">
-    <a href="#installation">Installation</a> •
-    <a href="#démarrage-rapide">Démarrage Rapide</a> •
-    <a href="#utilisation">Utilisation</a> •
-    <a href="#documentation">Documentation</a>
-  </p>
-</p>
+**La mémoire locale des agents IA.** Lorag indexe vos fichiers (documents, code, PDF, présentations, audio, vidéo) et garde ce que vos agents ont déjà trouvé : un correctif à une erreur, une réponse cherchée sur le web. Un agent les retrouve en quelques tokens au lieu de chercher à nouveau. Tout reste sur votre machine.
 
----
+- **Mémoire des agents.** Correctifs et réponses déjà trouvés, avec leur source, leurs versions et leur historique, rappelés en 20 à 60 tokens ([docs/MEMORY.md](docs/MEMORY.md)).
+- **Recherche hybride.** Le sens (embeddings) et les mots exacts (BM25) fusionnés. Les messages d'erreur sont cherchés mot pour mot.
+- **Positions exactes.** Chaque résultat renvoie à la page d'un PDF, aux lignes d'un fichier ou à la minute d'un audio ou d'une vidéo ([docs/MEDIA_INDEXING.md](docs/MEDIA_INDEXING.md)).
+- **MCP.** Cursor, VS Code, Codex et tout client MCP se branchent sur la même mémoire ([docs/MCP.md](docs/MCP.md)).
+- **Studio.** Une interface web pour voir ce que les agents demandent, tester une requête et comprendre pourquoi un résultat sort, et corriger la mémoire.
+- **Local.** Embeddings par Ollama, transcription par whisper.cpp, OCR par tesseract. Aucune donnée ne sort sans votre action.
+- **Fiable.** Le moteur de recherche, [VectixDB](https://github.com/raucheacho/vectixdb), est écrit en Zig, résiste aux plantages et est lié dans le démon : un seul binaire.
 
-## 🎯 Qu'est-ce que Lorag ?
+Statut : en développement actif, pas encore de version publiée. Voir [docs/STATUS.md](docs/STATUS.md).
 
-**Lorag** est un moteur RAG (Retrieval-Augmented Generation) 100% local qui permet à n'importe quelle IA (Claude, GPT, etc.) d'accéder à vos documents personnels de manière sécurisée et privée.
+## Installation
 
-### ✨ Fonctionnalités clés
+Lorag est un seul binaire pour macOS et Linux (amd64, arm64) : le Studio et le moteur sont dedans. Il lui faut [Ollama](https://ollama.com) pour les embeddings. À partir de la première version publiée :
 
-- 🔒 **100% Local & Privé** - Vos données ne quittent jamais votre machine
-- 🤖 **Compatible MCP** - Fonctionne avec Claude, ChatGPT, VS Code, et plus
-- 📄 **Multi-format** - PDF, Word, Markdown, code source (20+ formats)
-- 🔄 **Indexation automatique** - Surveillance en temps réel de vos dossiers
-- 📝 **Templates de prompts** - Personnalisez les réponses de vos IA
-- ⚡ **Ultra rapide** - Recherche sémantique en < 50ms
-- 🧪 **Studio** - Explorer, playground avec décomposition du score, logs des agents
+```sh
+# macOS (et Linux) avec Homebrew : Lorag tourne en fond avec la session
+brew install raucheacho/tap/lorag
+brew services start lorag
 
-## 📦 Installation
+# Linux : binaires dans ~/.local/bin, --service pour un service systemd utilisateur
+curl -fsSL https://raw.githubusercontent.com/raucheacho/lorag/main/scripts/install.sh | sh -s -- --service
 
-### Option 1 : Application Desktop (Recommandé)
-
-**macOS :**
-```bash
-curl -fsSL https://lorag.dev/install-macos.sh | bash
+ollama pull bge-m3
 ```
 
-**Windows :**
-```powershell
-# Téléchargez l'installeur
-https://github.com/lorag/lorag/releases/latest/download/lorag-windows.exe
-```
+Studio sur http://localhost:8080, données dans `~/.lorag/data`.
 
-**Linux :**
-```bash
-curl -fsSL https://lorag.dev/install.sh | bash
-```
+## Installation depuis les sources
 
-### Option 2 : Depuis les sources
+Prérequis :
+- Go 1.24 ;
+- Zig 0.16 ;
+- Node.js 20 ;
+- [Ollama](https://ollama.com) ;
+- le dépôt VectixDB à côté de celui-ci.
 
-```bash
-git clone https://github.com/lorag/lorag.git
+```sh
+git clone https://github.com/raucheacho/lorag
+git clone https://github.com/raucheacho/vectixdb
 cd lorag
-make install
-make build
+ollama pull bge-m3   # modèle d'embedding multilingue (1,2 Go)
+make build            # moteur VectixDB, Studio, bin/lorag et bin/loragctl
+./bin/lorag server    # Studio sur http://localhost:8080
 ```
 
-## 🚀 Démarrage Rapide
+Outils facultatifs pour les PDF, l'audio, la vidéo et les images : [docs/MEDIA_INDEXING.md](docs/MEDIA_INDEXING.md). Docker et compilation détaillée : [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md).
 
-### 1. Lancer Lorag
+## Démarrage
 
-```bash
-# Méthode simple
-./scripts/launch.sh
+1. Ouvrez http://localhost:8080. La page **Overview** vérifie le modèle d'embedding et propose d'indexer un premier dossier.
+2. **Ingestion** : indiquez un dossier ou glissez des fichiers. Cochez *Keep watching* pour réindexer les fichiers modifiés.
+3. **Connect** : copiez la configuration MCP de votre client (Cursor, VS Code, client HTTP) et testez la connexion.
+4. Travaillez avec votre agent. **Agent logs** montre ses recherches et ses rappels, **Memory** ce qu'il a appris.
 
-# Ou avec Make
-make launch
+Guide pas à pas : [QUICKSTART.md](QUICKSTART.md). Guide complet : [USER_GUIDE.md](USER_GUIDE.md).
 
-# Ou directement
-lorag server
-```
+## Le Studio
 
-L'interface s'ouvre automatiquement à `http://localhost:8080`
+| Page | |
+| --- | --- |
+| Overview | état du moteur et de l'embedder, volumes, dernières requêtes et indexations, mémoire |
+| Memory | tendances (rappels, tokens économisés), entrées avec historique, chronologie, santé, testeur de rappel |
+| Explorer | documents, chunks avec leur position, ouverture de la source à la bonne page ou minute |
+| Playground | une requête comme un agent la ferait, avec la part du sens et des mots dans le score, comparaison des routes, export `curl` ou MCP |
+| Agent logs | chaque recherche et chaque rappel, par client : question, résultats, latence |
+| Ingestion | indexer, glisser-déposer, dossiers surveillés, file d'attente, erreurs |
+| Connect | URL MCP, configuration par client, test, outils exposés |
+| Settings | embeddings, index, découpage, audio et images, maintenance |
 
-### 2. Assistant de configuration
+Palette de commandes `⌘K`, thème clair ou sombre.
 
-Au premier démarrage, suivez l'assistant :
+## Ligne de commande
 
-1. **Choisissez l'emplacement des données**
-2. **Ajoutez vos dossiers** à indexer
-3. **Configurez les embeddings** (Ollama recommandé)
-4. **Laissez indexer** - Ça prend quelques minutes
-
-### 3. Commencer à utiliser
-
-- 📁 **Ajoutez des dossiers** dans "Ingestion"
-- 🔍 **Testez vos requêtes** dans "Playground"
-- 🤖 **Connectez vos agents** depuis "Connect" (endpoint MCP)
-- 📈 **Suivez ce qu'ils demandent** dans "Agent logs"
-
-## 📖 Utilisation
-
-### Pour les utilisateurs non-techniques
-
-Lorag s'utilise via son **Studio**, servi par le démon sur `http://localhost:8080` (thème clair ou sombre, palette de commandes `⌘K`) :
-
-- **Overview** - état du moteur et de l'embedder, volumes, dernières requêtes et indexations ; guide de démarrage quand l'index est vide
-- **Explorer** - documents → chunks, avec le texte exact de chaque chunk et sa présence dans l'index
-- **Playground** - une requête comme un agent la ferait : rang vectoriel, rang BM25 et score fusionné de chaque résultat, comparaison des trois routes, export en `curl` ou en appel MCP
-- **Agent logs** - chaque recherche servie, par client MCP : question, résultats renvoyés, latence, réponses vides
-- **Ingestion** - indexer un fichier ou un dossier, dossiers surveillés, file d'attente, erreurs
-- **Connect** - URL MCP, configuration par client, test de connexion, outils exposés
-- **Settings** - embeddings, paramètres de l'index VectixDB, découpage, médias, maintenance
-
-### Pour les utilisateurs avancés (CLI)
-
-```bash
-# Indexer un dossier
-loragctl index /path/to/documents --recursive
-
-# Rechercher
-loragctl search "comment configurer un serveur"
-
-# Voir le statut
+```sh
+loragctl index ~/notes --recursive
+loragctl search "procédure de rollback"
+loragctl mem recall "Error: listen EADDRINUSE: address already in use :::3000"
+npm run dev 2>&1 | loragctl mem recall -
+loragctl mem save --kind knowledge --problem "taille max d'upload par défaut de nginx" \
+  --answer "1 Mo (client_max_body_size 1m)" --source https://nginx.org/en/docs/http/ngx_http_core_module.html
+loragctl mem stats
 loragctl status
-
-# Gérer les tâches planifiées
-loragctl schedule add --path /docs --cron "0 2 * * *"
 ```
 
-### Connexion avec les IA
+## API
 
-**Claude (MCP) :**
-```
-Paramètres > Extensions > MCP
-URL: http://localhost:8080/mcp
-```
+- **MCP :** `POST http://localhost:8080/mcp`. Outils : `memory_recall`, `memory_save`, `memory_feedback`, `search`, `get_document`, `ingest`, `get_stats` ([docs/MCP.md](docs/MCP.md)).
+- **REST :** `http://localhost:8080/api/v1` ([docs/API.md](docs/API.md)).
 
-**API REST :**
-```bash
-curl -X POST http://localhost:8080/api/v1/search \
-  -H "Content-Type: application/json" \
-  -d '{"query": "votre question", "top_k": 5}'
+```sh
+curl -s localhost:8080/api/v1/search -H 'Content-Type: application/json' \
+  -d '{"query": "procédure de rollback", "top_k": 5}'
 ```
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        CLIENTS                              │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐       │
-│  │  Claude  │ │ ChatGPT  │ │ VS Code  │ │   CLI    │       │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘       │
-└───────┼────────────┼────────────┼────────────┼─────────────┘
-        │            │            │            │
-        └────────────┴──────┬─────┴────────────┘
-                            │
-                    ┌───────▼───────┐
-                    │   MCP/REST    │
-                    │    API        │
-                    └───────┬───────┘
-                            │
-        ┌───────────────────┼───────────────────┐
-        │                   │                   │
-   ┌────▼────┐       ┌─────▼─────┐      ┌──────▼──────┐
-   │ Watcher │       │  Indexer  │      │    Query    │
-   │(fsnotify│       │ +Chunker  │      │   Engine    │
-   └────┬────┘       └─────┬─────┘      └──────┬──────┘
-        │                  │                   │
-        └──────────────────┼───────────────────┘
-                           │
-              ┌────────────┼────────────┐
-              │            │            │
-        ┌─────▼────┐ ┌────▼─────┐ ┌─────▼─────┐
-        │ BoltDB   │ │ VectixDB │ │  Parsers  │
-        │(Metadata)│ │ (Search) │ │(PDF/DOCX) │
-        └──────────┘ └──────────┘ └───────────┘
+agents MCP · loragctl · Studio
+          │
+   lorag server (Go) ── parsers, indexeur, mémoire, MCP, REST, Studio embarqué
+          │ cgo
+   VectixDB (Zig) ── index vectoriel, BM25, filtres, journal d'écriture
+          │
+   <data>/lorag.db (documents)   <data>/vectix/ (index et mémoire)
 ```
 
-## 📚 Documentation
+Détails : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-- **[Guide Utilisateur](USER_GUIDE.md)** - Documentation complète pour les utilisateurs
-- **[Démarrage Rapide](QUICKSTART.md)** - Premiers pas en 3 minutes
-- **[API Reference](docs/API.md)** - Documentation de l'API REST
-- **[MCP Protocol](docs/MCP.md)** - Guide du protocole MCP
-- **[Contributing](CONTRIBUTING.md)** - Guide de contribution
+## Documentation
 
-## 🛠️ Technologies
+Tout est listé dans [docs/README.md](docs/README.md). Pour contribuer : [CONTRIBUTING.md](CONTRIBUTING.md) et [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
-| Composant | Technologie |
-|-----------|-------------|
-| Backend | Go 1.24 |
-| API | Chi Router + CORS |
-| Recherche | [VectixDB](../vectixdb) (Zig, lié par cgo) : HNSW, BM25, filtres, fusion hybride, WAL |
-| Metadata | BoltDB |
-| Frontend | React 18 + TypeScript |
-| UI | TailwindCSS |
-| Build | Vite |
-| Embeddings | Ollama / OpenAI |
+## Licence
 
-## 🗺️ Roadmap
-
-- [x] Core RAG avec HNSW
-- [x] UI Web React
-- [x] Support MCP
-- [x] Planification d'indexation
-- [x] Templates de prompts
-- [ ] OCR pour images et PDF scannés
-- [ ] Synchronisation chiffrée multi-appareils
-- [ ] Plugins et extensions
-- [ ] Mode collaboratif (Enterprise)
-
-## 🤝 Contribution
-
-Les contributions sont les bienvenues ! Voir [CONTRIBUTING.md](CONTRIBUTING.md)
-
-```bash
-# Fork et clone
-git clone https://github.com/votre-username/lorag.git
-
-# Installer les déps
-make install
-
-# Lancer en dev
-make dev-server  # Terminal 1
-make dev-ui      # Terminal 2
-```
-
-## 📄 Licence
-
-Lorag est sous licence MIT. Voir [LICENSE](LICENSE)
-
----
-
-<p align="center">
-  <strong>Fait avec ❤️ pour une IA plus utile et privée</strong><br>
-  <a href="https://github.com/lorag/lorag">GitHub</a> •
-  <a href="https://discord.gg/lorag">Discord</a> •
-  <a href="https://twitter.com/lorag">Twitter</a>
-</p>
+MIT, voir [LICENSE](LICENSE). Le moteur VectixDB est sous licence Apache-2.0.

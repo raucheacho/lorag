@@ -1,4 +1,4 @@
-.PHONY: all build build-cli build-server build-ui engine test clean install dev-ui dev-server release
+.PHONY: all build build-cli build-server build-ui engine test clean install dev-ui dev-server dist
 
 # Variables
 BINARY_NAME=lorag
@@ -14,7 +14,6 @@ ENGINE_LIB=$(VECTIXDB)/bindings/go/lib/$(HOST_PLATFORM)/lib/libvectixdb.a
 
 # Directories
 BUILD_DIR=bin
-DATA_DIR=data
 WEB_DIR=ui
 UI_DIR=ui
 
@@ -77,8 +76,7 @@ clean:
 	@echo "Cleaning..."
 	@rm -rf $(BUILD_DIR)
 	@rm -rf $(UI_DIR)/dist
-	@rm -rf $(WEB_DIR)/dist
-	@rm -rf $(DATA_DIR)
+	@rm -rf $(WEB_DIR)/dist dist
 	@rm -f coverage.out coverage.html
 	@echo "✓ Cleaned"
 
@@ -90,18 +88,10 @@ install:
 	cd $(WEB_DIR) && npm install
 	@echo "✓ Dependencies installed"
 
-# Create data directory
-init-data:
-	@mkdir -p $(DATA_DIR)
-
-# Run the server (requires build)
-run: build-server init-data
+# Run the server (data in ~/.lorag/data)
+run: build-server
 	@echo "Starting Lorag server..."
 	./$(BUILD_DIR)/$(BINARY_NAME) server
-
-# Quick launch with script
-launch: build
-	@./scripts/launch.sh
 
 # Docker build
 docker-build:
@@ -109,46 +99,13 @@ docker-build:
 
 # Docker run
 docker-run:
-	docker run -p 8080:8080 -v $(PWD)/data:/data lorag:$(VERSION)
+	docker run -p 8080:8080 -v lorag-data:/data lorag:$(VERSION)
 
-# Release build for multiple platforms
-release:
-	@echo "Building release binaries..."
-	@mkdir -p $(BUILD_DIR)
-	
-	# macOS AMD64
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/lorag
-	GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(CLI_NAME)-darwin-amd64 ./cmd/loragctl
-	
-	# macOS ARM64
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/lorag
-	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(CLI_NAME)-darwin-arm64 ./cmd/loragctl
-	
-	# Linux AMD64
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/lorag
-	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(CLI_NAME)-linux-amd64 ./cmd/loragctl
-	
-	# Linux ARM64
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/lorag
-	GOOS=linux GOARCH=arm64 CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(CLI_NAME)-linux-arm64 ./cmd/loragctl
-	
-	# Windows AMD64
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/lorag
-	GOOS=windows GOARCH=amd64 CGO_ENABLED=1 go build $(LDFLAGS) -o $(BUILD_DIR)/$(CLI_NAME)-windows-amd64.exe ./cmd/loragctl
-	
-	@echo "✓ Release binaries built in $(BUILD_DIR)/"
-
-# Package for distribution
-package: build
-	@echo "Creating distribution packages..."
-	@mkdir -p dist
-	
-	# Create tar.gz for Unix systems
-	tar -czf dist/lorag-$(VERSION)-$(shell uname -s | tr '[:upper:]' '[:lower:]')-$(shell uname -m).tar.gz \
-		-C $(BUILD_DIR) $(BINARY_NAME) $(CLI_NAME) \
-		-C .. README.md USER_GUIDE.md QUICKSTART.md
-	
-	@echo "✓ Packages created in dist/"
+# Release archives in dist/ (scripts/dist.sh): the host platform by default,
+# e.g. make dist PLATFORMS="darwin_arm64 darwin_amd64 linux_amd64 linux_arm64"
+PLATFORMS ?= $(HOST_PLATFORM)
+dist: build-ui
+	VECTIXDB=$(VECTIXDB) ./scripts/dist.sh $(VERSION) $(PLATFORMS)
 
 # Install locally
 install-local: build
@@ -184,8 +141,6 @@ help:
 	@echo "  make clean        - Clean all build artifacts"
 	@echo "  make install      - Install dependencies"
 	@echo "  make run          - Build and run the server"
-	@echo "  make launch       - Quick launch with scripts/launch.sh"
-	@echo "  make release      - Build binaries for all platforms"
-	@echo "  make package      - Create distribution packages"
+	@echo "  make dist         - Release archives in dist/ (PLATFORMS=...)"
 	@echo "  make docker-build - Build Docker image"
 	@echo "  make help         - Show this help"

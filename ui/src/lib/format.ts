@@ -60,3 +60,41 @@ export function dirname(p: string): string {
   const i = p.lastIndexOf('/');
   return i > 0 ? p.slice(0, i) : '';
 }
+
+export function mediaClock(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+}
+
+interface Positioned {
+  kind?: string;
+  page?: number;
+  line_start?: number;
+  line_end?: number;
+  start_ms?: number;
+  end_ms?: number;
+  section?: string;
+}
+
+// location renders where a chunk is in its source: "p. 12", "slide 3",
+// "L40–58", "03:12–03:45", or "" when the source has no positions.
+export function location(p: Positioned): string {
+  if (p.end_ms) return `${mediaClock(p.start_ms ?? 0)}–${mediaClock(p.end_ms)}`;
+  if (p.page && p.kind === 'slides') return `slide ${p.page}`;
+  if (p.page && p.kind === 'sheet') return (p.section ?? '').replace(/^Sheet /, '') || `sheet ${p.page}`;
+  if (p.page) return `p. ${p.page}`;
+  if (p.line_start && p.line_end && p.line_end > p.line_start) return `L${p.line_start}–${p.line_end}`;
+  if (p.line_start) return `L${p.line_start}`;
+  return '';
+}
+
+// sourceLink opens the original file at the chunk's position: PDF viewers
+// read #page=, media elements read #t=start,end.
+export function sourceLink(fileURL: string, p: Positioned): string {
+  if (p.end_ms) return `${fileURL}#t=${((p.start_ms ?? 0) / 1000).toFixed(1)},${(p.end_ms / 1000).toFixed(1)}`;
+  if (p.page && p.kind === 'pdf') return `${fileURL}#page=${p.page}`;
+  return fileURL;
+}

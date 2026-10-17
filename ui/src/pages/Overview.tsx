@@ -146,6 +146,7 @@ export function OverviewPage() {
                   ]}
                 />
               </Section>
+              <MemoryCard />
               <Section title="Embeddings">
                 <KV
                   rows={[
@@ -271,5 +272,42 @@ function Step({ n, done }: { n: number; done: boolean }) {
     >
       {done ? '✓' : n}
     </span>
+  );
+}
+
+function MemoryCard() {
+  const navigate = useNavigate();
+  const st = useResource(api.memoryStats, [], 10000);
+  const s = st.data;
+  return (
+    <Section
+      title="Memory"
+      actions={
+        <Link to="/memory" className="flex items-center gap-1 text-xs text-muted hover:text-fg">
+          Open <ArrowRight size={12} />
+        </Link>
+      }
+    >
+      {!s ? (
+        <div className="skeleton m-4 h-16" />
+      ) : s.entries === 0 ? (
+        <div className="px-4 py-4 text-xs text-faint">
+          Nothing saved yet. Agents call memory_recall before solving a problem or searching the web, and memory_save to keep a fix or an answer.{' '}
+          <button className="text-accent hover:underline" onClick={() => navigate('/connect')}>
+            Connect an agent
+          </button>
+          .
+        </div>
+      ) : (
+        <KV
+          rows={[
+            ['Entries', `${num(s.entries)}: ${s.by_kind?.fix ?? 0} fixes, ${s.by_kind?.knowledge ?? 0} answers`],
+            ['Recall hit rate', s.recalls ? `${Math.round(s.hit_rate * 100)}% of ${num(s.recalls)}` : '–'],
+            ['Tokens per recall', s.recalls ? s.avg_recall_tokens.toFixed(0) : '–'],
+            ['Tokens saved', `~${num(s.tokens_saved_estimate)}`],
+          ]}
+        />
+      )}
+    </Section>
   );
 }

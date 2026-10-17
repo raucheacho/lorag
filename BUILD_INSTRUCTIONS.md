@@ -1,152 +1,104 @@
-# Instructions de Build - Lorag
+# Compiler Lorag
 
 ## Prérequis
 
-### Pour tous les systèmes
-- Go 1.24 ou supérieur
-- Zig 0.16 (pour compiler le moteur VectixDB)
-- Le dépôt VectixDB à côté de celui-ci (`../vectixdb`), ou ailleurs avec `make VECTIXDB=/chemin/vectixdb`
-- Node.js 18+ et npm
-- Git
-- CGO (inclus avec Go)
+| Outil | Version | Rôle |
+| --- | --- | --- |
+| Go | 1.24 ou plus | démon et CLI (cgo activé) |
+| Zig | 0.16.0 exactement | compile le moteur VectixDB ; sert aussi de compilateur C pour la compilation croisée |
+| Node.js et npm | 20 | le Studio |
+| Dépôt VectixDB | | à côté de celui-ci (`../vectixdb`), ou ailleurs avec `make VECTIXDB=/chemin/vectixdb` |
+| Compilateur C | | macOS : `xcode-select --install` ; Linux : `build-essential` |
 
-Le moteur de recherche est la bibliothèque statique de VectixDB, liée dans le binaire par cgo. `make build-server`, `make test` et `make dev-server` la compilent la première fois ; `make engine` la recompile après une mise à jour de VectixDB. `go.mod` pointe le binding Go vers `../vectixdb/bindings/go` (directive `replace`).
+Outils facultatifs pour l'extraction locale (PDF par page, audio, vidéo, OCR) : voir [docs/MEDIA_INDEXING.md](docs/MEDIA_INDEXING.md). Sans eux, les fichiers concernés échouent avec un message clair dans Ingestion, et le reste s'indexe normalement.
 
-### macOS spécifique
-- Xcode Command Line Tools: `xcode-select --install`
+## Comment le moteur est lié
 
-### Windows spécifique
-- MinGW-w64 pour CGO: https://www.mingw-w64.org/
-- Ou utiliser WSL2
+- **Bibliothèque statique.** Le moteur de recherche est `libvectixdb.a`, compilée par Zig et liée dans `lorag` par cgo.
+- **Module Go.** `go.mod` pointe le binding vers le dépôt voisin :
 
-## Build rapide
+  ```
+  replace github.com/raucheacho/vectixdb/bindings/go => ../vectixdb/bindings/go
+  ```
 
-```bash
-# 1. Cloner le repository
-git clone https://github.com/lorag/lorag.git
-cd lorag
+- **Compilation de la bibliothèque.** `make build-server`, `make build-cli`, `make test` et `make dev-server` la compilent si elle manque. `make engine` la recompile après une mise à jour de VectixDB.
 
-# 2. Installer les dépendances
-make install
+## Compiler
 
-# 3. Build complet (UI + binaires)
-make build
-
-# 4. Lancer
-make launch
+```sh
+make build            # Studio (ui/dist), moteur, bin/lorag, bin/loragctl
+./bin/lorag server
 ```
 
-## Build étape par étape
+Étape par étape :
 
-### 1. UI Web
-
-```bash
-cd web
-npm install
-npm run build
-cd ..
-```
-
-### 2. Backend Go
-
-```bash
-# Moteur VectixDB (une fois, puis après chaque mise à jour)
-make engine
-
-# Server
+```sh
+make engine                         # ../vectixdb/scripts/go-libs.sh
+(cd ui && npm ci && npm run build)  # ui/dist, embarqué dans le binaire
 go build -o bin/lorag ./cmd/lorag
-
-# CLI
 go build -o bin/loragctl ./cmd/loragctl
 ```
 
-### 3. Exécution
+Le dossier `ui/dist` doit exister au moment de compiler le serveur : le Studio y est embarqué (`go:embed`).
 
-```bash
-# Démarrer le serveur
-./bin/lorag server
+## Développement
 
-# Ou avec le script de lancement
-./scripts/launch.sh
+```sh
+make dev-server     # serveur sur :8080
+make dev-ui         # Studio sur :5173 avec rechargement à chaud, /api relayé vers :8080
+go test -race ./...
 ```
 
-## Build pour release (multi-platforme)
-
-```bash
-make release
-```
-
-Crée les binaires pour :
-- macOS (Intel & Apple Silicon)
-- Linux (AMD64 & ARM64)
-- Windows (AMD64)
+Détails : [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Docker
 
-```bash
-# Build
+L'image est construite sur Debian (la bibliothèque VectixDB est liée à la glibc ; Alpine ne convient pas). Le dépôt VectixDB est passé comme contexte nommé :
+
+```sh
+make docker-build
+# ou
 docker build --build-context vectixdb=../vectixdb -t lorag .
 
-# Run
-docker run -p 8080:8080 -v $(pwd)/data:/data lorag
+docker run -p 8080:8080 -v "$PWD/data:/data" \
+  -e LORAG_EMBEDDING_URL=http://host.docker.internal:11434 lorag
 ```
 
-## Structure des binaires
+Dans le conteneur, Ollama tourne sur la machine hôte : d'où `host.docker.internal`.
 
-```
-bin/
-├── lorag              # Serveur principal
-├── loragctl           # CLI
-└── [archives release]
-```
+## Archives de release
 
-## Tests
+`scripts/dist.sh` produit les archives distribuées, une par plateforme, dans `dist/` :
 
-```bash
-# Tests Go
-make test
-
-# Tests avec couverture
-make test-coverage
-
-# Lint
-make lint
+```sh
+(cd ui && npm ci && npm run build)
+./scripts/dist.sh 0.1.0 darwin_arm64 darwin_amd64 linux_amd64 linux_arm64
+# ou, pour la machine courante : make dist
 ```
 
-## Packaging
+Chaque archive `lorag_<version>_<os>_<arch>.tar.gz` contient `lorag`, `loragctl`, le README, la licence de Lorag, ainsi que la licence et la notice de VectixDB (Apache-2.0, à livrer avec le binaire). Le script écrit aussi `dist/SHA256SUMS`.
 
-```bash
-make package
-```
+| Plateforme | Compilateur C pour cgo | Où |
+| --- | --- | --- |
+| `darwin_arm64`, `darwin_amd64` | clang d'Apple (`-arch`, macOS 13 minimum) | sur macOS seulement : le binaire lie des frameworks Apple |
+| `linux_amd64`, `linux_arm64` | `zig cc`, contre la glibc 2.28 | depuis n'importe quelle machine. Le binaire tourne sur Debian 10, Ubuntu 20.04, RHEL 8 et plus récents |
 
-Crée des archives `.tar.gz` prêtes pour la distribution.
+`loragctl` est en Go pur. Windows n'est pas pris en charge : le moteur ne compile pas encore pour Windows (voir [docs/STATUS.md](docs/STATUS.md)).
 
-## Installation locale
+### Publier une version
 
-```bash
-make install-local
-```
+1. Mettre à jour le CHANGELOG si besoin, puis pousser un tag : `git tag v0.1.0 && git push origin v0.1.0`.
+2. Le workflow `release.yml` compile les archives (macOS sur un runner macOS, Linux avec `zig cc`), vérifie le binaire natif de chaque runner, puis crée une **release en brouillon** avec les archives, `SHA256SUMS` et la formule Homebrew `lorag.rb`. Il pousse aussi l'image Docker (`ghcr.io/raucheacho/lorag`, amd64).
+3. Relire le brouillon, puis le publier.
+4. Copier `lorag.rb` dans le dépôt du tap Homebrew (`Formula/lorag.rb`).
 
-Installe les binaires dans `/usr/local/bin`.
+Un tag avec un tiret (`v0.1.0-rc.1`) donne une préversion.
 
 ## Dépannage
 
-### "undefined: syscall.Something" sur Windows
-- Assurez-vous d'utiliser MinGW-w64
-- Ou compilez avec WSL2
-
-### "cannot find -ldl" sur Linux
-- Installez les headers: `sudo apt-get install build-essential`
-
-### Erreurs CGO
-- macOS: `xcode-select --install`
-- Linux: `sudo apt-get install gcc`
-- Windows: Installez MinGW-w64
-
-### UI ne se build pas
-```bash
-cd web
-rm -rf node_modules package-lock.json
-npm install
-npm run build
-```
+| Erreur | Solution |
+| --- | --- |
+| `libvectixdb.a: no such file` | `make engine` (VectixDB doit être à côté, ou `VECTIXDB=…`) |
+| `pattern all:dist: no matching files found` | Compiler le Studio d'abord : `cd ui && npm run build` |
+| `undefined reference to __zig_probe_stack` (Linux, macOS Intel) | Bibliothèque compilée avec une ancienne version de VectixDB : mettre VectixDB à jour, puis `make engine` |
+| `zig: command not found` ou erreurs de syntaxe Zig | Installer Zig 0.16.0 exactement |

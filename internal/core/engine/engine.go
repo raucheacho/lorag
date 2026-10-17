@@ -37,7 +37,10 @@ const (
 
 // Config describes the index to open or create.
 type Config struct {
-	Dir            string
+	Dir string
+	// Model names the embedding model: two models with the same dimension
+	// produce incompatible vectors, so a new model means a new generation.
+	Model          string
 	Dim            int
 	Metric         string // cosine, l2 or dot
 	Quantized      bool
@@ -51,8 +54,8 @@ type Config struct {
 // fingerprint lists every parameter baked into a collection; a change
 // requires a new generation.
 func (c Config) fingerprint() string {
-	return fmt.Sprintf("schema=%d dim=%d metric=%s int8=%t m=%d efc=%d k1=%g b=%g",
-		schemaVersion, c.Dim, c.Metric, c.Quantized, c.M, c.EfConstruction, c.BM25K1, c.BM25B)
+	return fmt.Sprintf("schema=%d model=%s dim=%d metric=%s int8=%t m=%d efc=%d k1=%g b=%g",
+		schemaVersion, c.Model, c.Dim, c.Metric, c.Quantized, c.M, c.EfConstruction, c.BM25K1, c.BM25B)
 }
 
 func parseMetric(s string) vtx.Metric {

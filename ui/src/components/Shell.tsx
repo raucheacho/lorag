@@ -2,6 +2,7 @@ import { createContext, ReactNode, useContext, useEffect, useMemo, useRef, useSt
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   Activity,
+  Brain,
   Cable,
   CornerDownLeft,
   FolderInput,
@@ -29,6 +30,7 @@ export function useOverview() {
 
 const nav = [
   { to: '/', label: 'Overview', icon: LayoutDashboard, end: true },
+  { to: '/memory', label: 'Memory', icon: Brain },
   { to: '/explorer', label: 'Explorer', icon: Table2 },
   { to: '/playground', label: 'Playground', icon: TerminalSquare },
   { to: '/logs', label: 'Agent logs', icon: Activity },

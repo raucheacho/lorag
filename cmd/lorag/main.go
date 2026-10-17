@@ -6,14 +6,15 @@ import (
 
 	"github.com/lorag/lorag/internal/config"
 	"github.com/lorag/lorag/internal/server"
-	"github.com/spf13/cobra"
 	vectixdb "github.com/raucheacho/vectixdb/bindings/go"
+	"github.com/spf13/cobra"
 )
 
 var (
 	// Version info
 	Version   = "dev"
 	BuildTime = "unknown"
+	Commit    = "unknown"
 )
 
 func main() {
@@ -65,9 +66,13 @@ func serverCmd() *cobra.Command {
 			}
 			if dataDir != "" {
 				cfg.DataDir = dataDir
-				if err := os.MkdirAll(dataDir, 0o755); err != nil {
-					return err
-				}
+			}
+			notice, err := cfg.ResolveDataDir()
+			if err != nil {
+				return err
+			}
+			if notice != "" {
+				fmt.Fprintln(os.Stderr, "Note:", notice)
 			}
 
 			srv, err := server.NewServer(cfg, Version)
@@ -81,7 +86,7 @@ func serverCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&host, "host", "H", "", "Server host (env: LORAG_HOST)")
 	cmd.Flags().IntVarP(&port, "port", "p", 0, "Server port (env: LORAG_PORT)")
-	cmd.Flags().StringVarP(&dataDir, "data-dir", "d", "", "Data directory (env: LORAG_DATA_DIR)")
+	cmd.Flags().StringVarP(&dataDir, "data-dir", "d", "", "Data directory (env: LORAG_DATA_DIR, default ~/.lorag/data)")
 
 	return cmd
 }
@@ -91,7 +96,7 @@ func versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("Lorag %s (built %s, VectixDB %s)\n", Version, BuildTime, vectixdb.Version())
+			fmt.Printf("Lorag %s (commit %s, built %s, VectixDB %s)\n", Version, Commit, BuildTime, vectixdb.Version())
 		},
 	}
 }

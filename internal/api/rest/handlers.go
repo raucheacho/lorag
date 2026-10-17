@@ -19,6 +19,7 @@ import (
 	"github.com/lorag/lorag/internal/core/query"
 	"github.com/lorag/lorag/internal/core/store"
 	"github.com/lorag/lorag/internal/embeddings"
+	"github.com/lorag/lorag/internal/memory"
 	"github.com/lorag/lorag/internal/parsers"
 	"github.com/lorag/lorag/internal/watcher"
 )
@@ -30,6 +31,7 @@ type Deps struct {
 	Indexer   *indexer.Indexer
 	Query     *query.Engine
 	Engine    *engine.Engine
+	Memory    *memory.Service
 	Embedder  embeddings.Provider
 	Activity  *activity.Log
 	Watcher   *watcher.Watcher
@@ -599,6 +601,8 @@ func validateSettings(s *store.AppSettings) error {
 		return errors.New("chunk_size must be >= 32 and chunk_overlap smaller than chunk_size")
 	case s.IndexWorkers < 0:
 		return errors.New("index_workers must be >= 0")
+	case s.MemoryMinSimilarity < 0 || s.MemoryMinSimilarity >= 1 || s.MemoryMinSimilarityText < 0 || s.MemoryMinSimilarityText >= 1:
+		return errors.New("memory thresholds must be between 0 (automatic) and 1")
 	}
 	return nil
 }

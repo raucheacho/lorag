@@ -9,13 +9,15 @@ import { Badge, Button, ErrorLine, Field, Input, NumberField, PageHeader, Sectio
 
 // Parameters baked into the index: changing one starts a new generation,
 // rebuilt from the document store on the next start.
-const indexKeys: (keyof Settings)[] = ['embedding_dim', 'vector_metric', 'vector_quantized', 'vector_m', 'vector_ef', 'bm25_k1', 'bm25_b'];
+const indexKeys: (keyof Settings)[] = ['embedding_model', 'embedding_dim', 'vector_metric', 'vector_quantized', 'vector_m', 'vector_ef', 'bm25_k1', 'bm25_b'];
 
 export function SettingsPage() {
   const toast = useToast();
   const overview = useOverview();
   const saved = useResource(api.settings, []);
   const models = useResource(api.models, []);
+  const memStats = useResource(api.memoryStats, []);
+  const memThresholds = memStats.data?.thresholds;
   const [draft, setDraft] = useState<Settings>();
   const [saving, setSaving] = useState(false);
   const [restart, setRestart] = useState(false);
@@ -107,7 +109,7 @@ export function SettingsPage() {
                 ]}
               />
             </Field>
-            <Field label="Model">{text('embedding_model', 'nomic-embed-text')}</Field>
+            <Field label="Model">{text('embedding_model', 'bge-m3')}</Field>
             <Field label="Endpoint">{text('embedding_url', 'http://localhost:11434')}</Field>
             <Field label="Dimension" hint="Must match what the model returns.">
               {num('embedding_dim', { min: 1, max: 65536 })}
@@ -160,7 +162,7 @@ export function SettingsPage() {
           </Group>
 
           <Group title="Chunking and indexing" note="Applies to files indexed after the restart; reindex a document to re-chunk it.">
-            <Field label="Chunk size" hint="In tokens.">
+            <Field label="Chunk size" hint="In characters. Pages, slides and media segments are never merged across.">
               {num('chunk_size', { min: 32 })}
             </Field>
             <Field label="Overlap" hint="Tokens shared by consecutive chunks.">
@@ -190,12 +192,30 @@ export function SettingsPage() {
             </Field>
           </Group>
 
+          <Group
+            title="Memory"
+            note="A recalled entry that is not an exact error match is kept only above these similarities. They depend on the embedding model: leave 0 for the values calibrated for it."
+          >
+            <Field
+              label="Minimum similarity"
+              hint={`0 = automatic${memThresholds ? ` (now ${memThresholds.similarity}${memThresholds.calibrated ? ', calibrated' : ''})` : ''}.`}
+            >
+              {num('memory_min_similarity', { min: 0, max: 0.99, step: 0.01 })}
+            </Field>
+            <Field
+              label="With matching words"
+              hint={`When the words match too. 0 = automatic${memThresholds ? ` (now ${memThresholds.similarity_text})` : ''}.`}
+            >
+              {num('memory_min_similarity_text', { min: 0, max: 0.99, step: 0.01 })}
+            </Field>
+          </Group>
+
           <Group title="Images and audio" note="Optional local models: images are described by a vision model through Ollama, audio is transcribed with Whisper.">
-            <Field label="Image description">
+            <Field label="Image description" hint="Text in images is always read with tesseract when installed.">
               <Toggle checked={draft.ocr_enabled} onChange={(v) => set('ocr_enabled', v)} />
               {draft.ocr_enabled && text('ocr_model', 'llava:7b')}
             </Field>
-            <Field label="Audio transcription">
+            <Field label="Audio transcription" hint="Audio and video, with timestamps. Needs whisper-cli (brew install whisper-cpp) and ffmpeg.">
               <Toggle checked={draft.transcription_enabled} onChange={(v) => set('transcription_enabled', v)} />
               {draft.transcription_enabled && (
                 <>

@@ -5,6 +5,7 @@ import { api, Chunk } from '../lib/api';
 import { useHotkey, useResource, useStored } from '../lib/hooks';
 import { ago, bytes, dateTime, dirname, num, shortPath } from '../lib/format';
 import { useToast } from '../components/toast';
+import { KindBadge, LocationBadge, OpenAt } from '../components/source';
 import { Badge, Button, CopyButton, cx, Drawer, Empty, ErrorLine, Input, Kbd, KV, PageHeader, Select, SkeletonRows } from '../components/ui';
 
 const PAGE = 50;
@@ -93,7 +94,7 @@ export function ExplorerPage() {
               <thead>
                 <tr>
                   <th className="th">Name</th>
-                  <th className="th w-20">Type</th>
+                  <th className="th w-32">Type</th>
                   <th className="th w-24 text-right">Size</th>
                   <th className="th w-20 text-right">Chunks</th>
                   <th className="th w-28">Indexed</th>
@@ -111,7 +112,10 @@ export function ExplorerPage() {
                       </div>
                     </td>
                     <td className="td">
-                      <Badge>{d.extension || '—'}</Badge>
+                      <span className="flex items-center gap-1.5">
+                        <KindBadge kind={d.kind} />
+                        <span className="font-mono text-2xs text-faint">{d.extension}</span>
+                      </span>
                     </td>
                     <td className="td text-right font-mono text-xs tabular text-muted">{bytes(d.size)}</td>
                     <td className="td text-right font-mono text-xs tabular">{d.chunk_count}</td>
@@ -206,6 +210,7 @@ function DocumentDrawer({ id, onClose, onChanged }: { id: string; onClose: () =>
             ['ID', <span className="flex items-center justify-between gap-2">{d.id}<CopyButton text={d.id} /></span>],
             ['Size', `${bytes(d.size)} · ${d.extension || 'no extension'}${d.mime_type ? ` · ${d.mime_type}` : ''}`],
             ['Checksum', d.checksum.slice(0, 16)],
+            ['Source', <a href={api.fileURL(d.id)} target="_blank" rel="noreferrer" className="text-accent hover:underline">Open original file</a>],
             ['Indexed', dateTime(d.indexed_at)],
             [
               'Chunks',
@@ -220,22 +225,25 @@ function DocumentDrawer({ id, onClose, onChanged }: { id: string; onClose: () =>
       )}
       <div className="px-4 pb-2 pt-4 text-2xs font-medium uppercase tracking-wide text-faint">Chunks</div>
       <div className="space-y-2 px-4 pb-4">
-        {chunks.data?.chunks.map((c) => <ChunkCard key={c.id} c={c} />)}
+        {chunks.data?.chunks.map((c) => <ChunkCard key={c.id} c={c} kind={d?.kind} />)}
       </div>
     </Drawer>
   );
 }
 
-function ChunkCard({ c }: { c: Chunk }) {
+function ChunkCard({ c, kind }: { c: Chunk; kind?: string }) {
   const [open, setOpen] = useState(false);
   const long = c.content.length > 420;
   return (
     <div className="rounded-md border border-line">
       <div className="flex items-center gap-2 border-b border-line px-3 py-1.5 text-2xs text-faint">
         <span className="font-mono text-muted">#{c.position}</span>
-        <span className="font-mono">
-          bytes {num(c.start_byte)}–{num(c.end_byte)}
-        </span>
+        <LocationBadge p={{ ...c, kind }} />
+        {c.section && c.section !== 'screen' && (
+          <span className="min-w-0 truncate" title={c.section}>
+            {c.section}
+          </span>
+        )}
         <span className="font-mono">{c.tokens} tok</span>
         <span className="font-mono">{c.dim}d</span>
         <span className="ml-auto">{c.indexed ? <Badge tone="ok">indexed</Badge> : <Badge tone="bad">not in index</Badge>}</span>
@@ -247,6 +255,9 @@ function ChunkCard({ c }: { c: Chunk }) {
       >
         {c.content}
       </pre>
+      {(kind === 'audio' || kind === 'video' || kind === 'pdf') && (
+        <OpenAt documentId={c.document_id} p={{ ...c, kind }} className="block px-3 pb-2" />
+      )}
       {long && (
         <button className="w-full border-t border-line py-1 text-2xs text-faint hover:text-fg" onClick={() => setOpen(!open)}>
           {open ? 'Collapse' : `Show all ${num(c.content.length)} characters`}

@@ -53,7 +53,7 @@ func open(t *testing.T, dir string, dim int) (*Service, func()) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s, err := Open(eng.DB(), wordsEmbedder{dim}, dim)
+	s, err := Open(eng.DB(), wordsEmbedder{dim}, dim, Options{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,13 +88,14 @@ func TestSaveRecallFeedback(t *testing.T) {
 	if !strings.Contains(rec.Text, "Fix: Clear caches") || strings.Contains(rec.Text, "Problem:") {
 		t.Fatalf("text:\n%s", rec.Text)
 	}
-	if rec.Tokens > 40 {
-		t.Fatalf("recall costs %d tokens:\n%s", rec.Tokens, rec.Text)
+	// The format costs little beyond the fix itself.
+	if overhead := rec.Tokens - EstimateTokens(r.Entry.Solution); overhead > 20 {
+		t.Fatalf("format overhead %d tokens:\n%s", overhead, rec.Text)
 	}
 
 	// Another major version: still returned, marked recheck for this caller.
 	rec, _ = s.Recall(RecallRequest{Error: metroErr, Context: map[string]string{"expo": "51.1.0"}})
-	if m := rec.Matches[0]; m.Status != Recheck || !strings.Contains(m.Reason, "expo 51.1.0≠52") || !strings.Contains(rec.Text, "recheck (expo") {
+	if m := rec.Matches[0]; m.Status != Recheck || !strings.Contains(m.Reason, "expo 51.1.0≠52") || !strings.Contains(rec.Text, "RECHECK (expo") {
 		t.Fatalf("context: %+v\n%s", m, rec.Text)
 	}
 
@@ -145,7 +146,7 @@ func TestSaveRecallFeedback(t *testing.T) {
 	// A new embedding dimension re-embeds the entries.
 	s, done = open(t, dir, 32)
 	defer done()
-	if rec, _ := s.Recall(RecallRequest{Query: "metro cannot resolve App after moving files"}); len(rec.Matches) == 0 || rec.Matches[0].By != "similarity" {
+	if rec, _ := s.Recall(RecallRequest{Query: "Metro cannot resolve ./App after moving files " + errorLine(metroErr)}); len(rec.Matches) == 0 || rec.Matches[0].By != "similarity" {
 		t.Fatalf("not recalled after migration: %+v", rec)
 	}
 	if es, _ := s.List(ListRequest{}); len(es) != 2 {
@@ -156,7 +157,7 @@ func TestSaveRecallFeedback(t *testing.T) {
 func TestRecallSimilarityAndMiss(t *testing.T) {
 	s, done := open(t, t.TempDir(), 64)
 	defer done()
-	s.Save(SaveRequest{Problem: "postgres connection refused inside docker compose network", Solution: "Use the service name db as host, not localhost"})
+	s.Save(SaveRequest{Kind: KindFix, Problem: "postgres connection refused inside docker compose network", Solution: "Use the service name db as host, not localhost"})
 
 	rec, err := s.Recall(RecallRequest{Query: "connection refused to postgres from docker compose"})
 	if err != nil || len(rec.Matches) != 1 || rec.Matches[0].By != "similarity" || !strings.Contains(rec.Text, "Problem: postgres") {
@@ -223,5 +224,81 @@ func TestFormatBudget(t *testing.T) {
 	}, 40)
 	if used != 1 || EstimateTokens(text) > 48 || !strings.HasSuffix(text, "…") {
 		t.Fatalf("used %d, %d tokens:\n%s", used, EstimateTokens(text), text)
+	}
+}
+
+func TestKnowledgeEntries(t *testing.T) {
+	s, done := open(t, t.TempDir(), 64)
+	defer done()
+	// Found after a web search: worth keeping so the agent does not search again.
+	r, err := s.Save(SaveRequest{
+		Problem:  "default rate limit of the github REST API for authenticated requests",
+		Solution: "5,000 requests per hour per user; check the X-RateLimit-Remaining header",
+		Source:   "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api?apiVersion=2022-11-28",
+	})
+	if err != nil || r.Entry.Kind != KindKnowledge {
+		t.Fatalf("save: %v %+v", err, r)
+	}
+	rec, _ := s.Recall(RecallRequest{Query: "github REST API rate limit for authenticated requests", Budget: 120})
+	if len(rec.Matches) != 1 {
+		t.Fatalf("not recalled: %+v", rec)
+	}
+	if !strings.Contains(rec.Text, "Answer: 5,000 requests per hour per user; check the X-RateLimit-Remaining header") || strings.Contains(rec.Text, "Fix:") ||
+		!strings.Contains(rec.Text, "Q: default rate limit") ||
+		!strings.Contains(rec.Text, "Src: docs.github.com/…/rate-limits-for-the-rest-api") {
+		t.Fatalf("text:\n%s", rec.Text)
+	}
+	// With an error message, an entry is a fix unless said otherwise.
+	f, _ := s.Save(SaveRequest{Error: "fatal: refusing to merge unrelated histories", Solution: "git pull --allow-unrelated-histories"})
+	if f.Entry.Kind != KindFix {
+		t.Fatalf("kind %q", f.Entry.Kind)
+	}
+	if _, err := s.Save(SaveRequest{Kind: "todo", Problem: "x", Solution: "y"}); err == nil {
+		t.Fatal("unknown kind accepted")
+	}
+	ks, _ := s.List(ListRequest{Kind: KindKnowledge})
+	st, _ := s.Stats()
+	if len(ks) != 1 || st.ByKind[KindFix] != 1 || st.ByKind[KindKnowledge] != 1 {
+		t.Fatalf("list %d, stats %+v", len(ks), st.ByKind)
+	}
+}
+
+func TestSourceDroppedBeforeAnswer(t *testing.T) {
+	e := &Entry{ID: "k-1", Kind: KindKnowledge, Problem: "q", Solution: strings.Repeat("word ", 40), Source: "https://example.com/a/very/long/path/to/the-page", Successes: 1}
+	text, _ := format([]Match{{Entry: e, By: "signature", Status: Valid}}, 60)
+	if strings.Contains(text, "Src:") {
+		t.Fatalf("source kept while the answer is cut:\n%s", text)
+	}
+	text, _ = format([]Match{{Entry: e, By: "signature", Status: Valid}}, 200)
+	if !strings.Contains(text, "Src: example.com/…/the-page") {
+		t.Fatalf("source missing with room:\n%s", text)
+	}
+}
+
+func TestKnowledgeFoundByItsAnswer(t *testing.T) {
+	s, done := open(t, t.TempDir(), 64)
+	defer done()
+	// A vague title: the meaning is in the answer, which is part of the vector.
+	s.Save(SaveRequest{Kind: KindKnowledge, Problem: "personal reminder", Solution: "lunch every day before noon, dinner at seven"})
+	rec, _ := s.Recall(RecallRequest{Query: "lunch every day before noon and dinner at seven"})
+	if len(rec.Matches) != 1 {
+		t.Fatalf("not found by its answer: %+v", rec)
+	}
+	// A miss reports the nearest candidate, for the Studio.
+	rec, _ = s.Recall(RecallRequest{Query: "personal finances spreadsheet"})
+	if len(rec.Matches) != 0 || rec.Nearest == nil || rec.Nearest.Entry.Problem != "personal reminder" {
+		t.Fatalf("nearest: %+v", rec)
+	}
+}
+
+func TestThresholdsByModel(t *testing.T) {
+	if th := thresholdsFor(Options{Model: "bge-m3:latest"}); th.Similarity != 0.55 || !th.Calibrated {
+		t.Fatalf("bge-m3: %+v", th)
+	}
+	if th := thresholdsFor(Options{Model: "some-new-model"}); th.Similarity != 0.80 || th.Calibrated {
+		t.Fatalf("unknown model: %+v", th)
+	}
+	if th := thresholdsFor(Options{Model: "bge-m3", MinSimilarity: 0.6}); th.Similarity != 0.6 || th.SimilarityText != 0.50 || th.Calibrated {
+		t.Fatalf("override: %+v", th)
 	}
 }

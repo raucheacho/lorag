@@ -18,6 +18,7 @@ var (
 	// Version info
 	Version   = "dev"
 	BuildTime = "unknown"
+	Commit    = "unknown"
 
 	// API client
 	apiBaseURL = "http://localhost:8080/api/v1"
@@ -54,6 +55,7 @@ from the command line.`,
 	rootCmd.AddCommand(statusCmd())
 	rootCmd.AddCommand(watchCmd())
 	rootCmd.AddCommand(docCmd())
+	rootCmd.AddCommand(memCmd())
 	rootCmd.AddCommand(versionCmd())
 
 	if err := rootCmd.Execute(); err != nil {
@@ -362,7 +364,7 @@ func versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("loragctl %s (built %s)\n", Version, BuildTime)
+			fmt.Printf("loragctl %s (commit %s, built %s)\n", Version, Commit, BuildTime)
 		},
 	}
 }

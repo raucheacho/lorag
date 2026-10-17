@@ -20,6 +20,7 @@ import (
 	"github.com/lorag/lorag/internal/core/query"
 	"github.com/lorag/lorag/internal/core/store"
 	"github.com/lorag/lorag/internal/embeddings"
+	"github.com/lorag/lorag/internal/memory"
 	"github.com/lorag/lorag/internal/watcher"
 )
 
@@ -30,6 +31,7 @@ type Server struct {
 	store         *store.BoltStore
 	settingsStore *store.SettingsStore
 	engine        *engine.Engine
+	memory        *memory.Service
 	embedder      embeddings.Provider
 	indexer       *indexer.Indexer
 	query         *query.Engine
@@ -81,6 +83,7 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 
 	eng, err := engine.Open(engine.Config{
 		Dir:            cfg.IndexDir(),
+		Model:          appSettings.EmbeddingModel,
 		Dim:            appSettings.EmbeddingDim,
 		Metric:         appSettings.VectorMetric,
 		Quantized:      appSettings.VectorQuantized,
@@ -93,6 +96,17 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 	if err != nil {
 		st.Close()
 		return nil, fmt.Errorf("failed to open search engine: %w", err)
+	}
+
+	mem, err := memory.Open(eng.DB(), embedder, appSettings.EmbeddingDim, memory.Options{
+		Model:             appSettings.EmbeddingModel,
+		MinSimilarity:     appSettings.MemoryMinSimilarity,
+		MinSimilarityText: appSettings.MemoryMinSimilarityText,
+	})
+	if err != nil {
+		eng.Close()
+		st.Close()
+		return nil, fmt.Errorf("failed to open memory: %w", err)
 	}
 
 	idx := indexer.NewIndexer(st, settingsStore, eng, embedder, indexer.Config{
@@ -111,6 +125,7 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 		settingsStore: settingsStore,
 		appSettings:   appSettings,
 		engine:        eng,
+		memory:        mem,
 		embedder:      embedder,
 		indexer:       idx,
 		query:         query.NewEngine(st, eng, embedder, act),
@@ -154,6 +169,7 @@ func (s *Server) Start() error {
 		Indexer:   s.indexer,
 		Query:     s.query,
 		Engine:    s.engine,
+		Memory:    s.memory,
 		Embedder:  s.embedder,
 		Activity:  s.activity,
 		Watcher:   s.watcher,
@@ -164,7 +180,10 @@ func (s *Server) Start() error {
 	})
 	router := rest.NewRouter(handler)
 
-	mcpServer := mcp.NewServer(s.store, s.settingsStore, s.indexer, s.query, s.version)
+	mcpServer := mcp.NewServer(mcp.Deps{
+		Store: s.store, Settings: s.settingsStore, Indexer: s.indexer, Query: s.query,
+		Memory: s.memory, Activity: s.activity, Version: s.version,
+	})
 	router.(*chi.Mux).HandleFunc("/mcp", mcpServer.Handle)
 
 	s.httpServer = &http.Server{

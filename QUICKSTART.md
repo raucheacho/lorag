@@ -1,128 +1,81 @@
-# Démarrage Rapide Lorag
+# Démarrage rapide
 
-## 🚀 En 3 minutes chrono
+Dix minutes, depuis les sources. Il n'y a pas encore d'installeur.
 
-### 1. Installation (30 secondes)
+## 1. Prérequis
 
-**Windows :**
-```powershell
-# Téléchargez et exécutez
-https://github.com/lorag/lorag/releases/latest/download/lorag-windows.exe
+```sh
+# macOS
+brew install go zig node ollama
+brew install poppler ffmpeg whisper-cpp tesseract   # facultatif : PDF par page, audio, vidéo, OCR
+ollama serve &                                       # si Ollama ne tourne pas déjà
+ollama pull bge-m3          # modèle d'embedding multilingue (français, anglais, arabe…), 1,2 Go
 ```
 
-**Mac :**
-```bash
-# Téléchargez le .dmg et glissez dans Applications
-curl -LO https://github.com/lorag/lorag/releases/latest/download/lorag-macos.dmg
+Zig doit être en version 0.16.
+
+## 2. Compiler
+
+```sh
+git clone https://github.com/raucheacho/vectixdb
+git clone https://github.com/raucheacho/lorag
+cd lorag
+make build
 ```
 
-**Linux :**
-```bash
-curl -fsSL https://lorag.dev/install.sh | bash
+`make build` compile le moteur VectixDB, le Studio, puis `bin/lorag` et `bin/loragctl`.
+
+## 3. Lancer
+
+```sh
+./bin/lorag server
 ```
 
-### 2. Premier lancement (1 minute)
+Ouvrez http://localhost:8080.
 
-```bash
-# Démarrez le serveur
-lorag server
+- Les données vont dans `~/.lorag/data`. Pour un autre dossier : `./bin/lorag server -d ~/lorag-data`.
+- Pour un autre port : `-p 8090`.
 
-# Ou double-cliquez sur l'application
-```
+## 4. Indexer un dossier
 
-Ouvrez votre navigateur à : `http://localhost:8080`
+Sur **Overview**, le guide de démarrage vérifie le modèle d'embedding, puis demande un dossier.
+- **Index** lance l'indexation.
+- *Watch* réindexe ensuite les fichiers modifiés.
 
-### 3. Configuration initiale (2 minutes)
+La page **Ingestion** montre l'avancement et les éventuelles erreurs. Vous pouvez aussi y glisser des fichiers.
 
-Suivez l'assistant qui s'ouvre automatiquement :
+## 5. Chercher
 
-1. ✅ **Choisissez où stocker les données** (dossier par défaut recommandé)
-2. ✅ **Ajoutez un dossier** contenant vos documents
-3. ✅ **Laissez indexer** (cela prend quelques minutes)
-4. ✅ **C'est prêt !**
+Dans **Playground**, tapez une question puis `⌘↵`. Chaque résultat indique :
+- son fichier, et sa page, ses lignes ou sa minute ;
+- son rang dans la recherche par le sens (violet) et dans la recherche par les mots (orange).
 
-## 🎯 Utilisation immédiate
+*Compare routes* montre ce que chaque recherche trouve seule.
 
-### Rechercher dans vos documents
+## 6. Connecter un agent
 
-1. Cliquez sur **"Recherche"** dans le menu
-2. Tapez votre question en français naturel :
-   - ❌ Mauvais : `contrat date 2024`
-   - ✅ Bon : `quel est le dernier contrat signé avec le client X ?`
-3. Explorez les résultats avec scores de pertinence
+Dans **Connect**, choisissez votre client (client HTTP générique, Cursor, VS Code, passerelle stdio), copiez la configuration et cliquez sur **Test**. L'URL est `http://localhost:8080/mcp`.
 
-### Connecter Claude (optionnel)
+L'agent reçoit sept outils, dont :
+- `memory_recall` : chercher dans ce qui est déjà connu avant de chercher ailleurs ;
+- `memory_save` : garder un correctif ou une réponse utile ;
+- `search` : chercher dans vos fichiers.
 
-Dans Claude Desktop :
-```
-Paramètres > Extensions > Ajouter MCP
-URL: http://localhost:8080/mcp
-```
+## 7. Suivre
 
-Demandez à Claude : *"Cherche dans mes documents comment configurer un serveur"*
+- **Agent logs** : chaque recherche et chaque rappel de vos agents, en direct.
+- **Memory** : ce qu'ils ont appris, ce qui a servi, les tokens économisés.
 
-## 📂 Quels dossiers indexer ?
+## Problèmes courants
 
-**Recommandés :**
-- 📁 Documents professionnels
-- 📁 Notes et réunions
-- 📁 Documentation technique
-- 📁 Archives de projets
+| Symptôme | Cause et solution |
+| --- | --- |
+| `address already in use` au lancement | Le port 8080 est pris : `./bin/lorag server -p 8090` |
+| *Embedder unavailable* dans la barre latérale | Ollama ne tourne pas, ou le modèle manque : `ollama serve`, `ollama pull bge-m3` |
+| `database locked by another process` | Un autre `lorag server` utilise le même dossier de données |
+| Un PDF n'a pas de numéro de page | `pdftotext` n'est pas installé |
+| Un audio ou une vidéo échoue avec `TRANSCRIPTION_DISABLED` | Settings → Images and audio → Audio transcription, puis redémarrer |
+| Aucun résultat | Vérifiez dans Explorer que le fichier est indexé ; pour un identifiant exact, essayez le mode *Exact* |
+| `max chunks limit reached (5000)` | Sans clé de licence, l'index est limité à 5 000 chunks (voir [docs/STATUS.md](docs/STATUS.md)) |
 
-**À éviter :**
-- ❌ Dossiers système
-- ❌ Fichiers temporaires
-- ❌ Vidéos et images (non supportés en version gratuite)
-
-## ⚡ Commandes essentielles (CLI)
-
-Pour les utilisateurs avancés :
-
-```bash
-# Indexer un dossier
-loragctl index /chemin/vers/documents --recursive
-
-# Rechercher
-loragctl search "votre question ici"
-
-# Voir le statut
-loragctl status
-
-# Ajouter une surveillance
-loragctl watch add /chemin/vers/dossier
-```
-
-## 🆘 Problèmes courants
-
-### "Port 8080 déjà utilisé"
-```bash
-lorag server --port 8081
-```
-
-### "Ollama non trouvé"
-```bash
-# Installez Ollama
-curl -fsSL https://ollama.com/install.sh | sh
-
-# Téléchargez le modèle
-ollama pull nomic-embed-text
-```
-
-### "Aucun résultat de recherche"
-1. Vérifiez dans le Tableau de bord que des documents sont indexés
-2. Attendez que l'indexation soit terminée
-3. Essayez des termes plus généraux
-
-## 🎓 Prochaines étapes
-
-- **Planification** : Configurez l'indexation automatique quotidienne
-- **Templates** : Personnalisez les prompts pour vos IA
-- **MCP** : Connectez vos agents IA préférés
-
-📖 **[Guide utilisateur complet](USER_GUIDE.md)**
-
----
-
-**Besoin d'aide ?** 
-- 💬 Discord : https://discord.gg/lorag
-- ✉️ Email : support@lorag.dev
+La suite : [USER_GUIDE.md](USER_GUIDE.md).

@@ -1,82 +1,130 @@
 name: Release
 
+# Pushing a tag v<version> builds the archives, drafts the GitHub release
+# (archives, SHA256SUMS, Homebrew formula) and pushes the Docker image.
+# Publish the draft by hand after checking it.
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
 
 permissions:
   contents: write
   packages: write
 
 jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # macOS binaries link Apple frameworks: built on macOS.
+          - os: macos-latest
+            platforms: darwin_arm64 darwin_amd64
+            smoke: darwin_arm64
+          # Linux binaries are cross-built with zig cc against glibc 2.28.
+          - os: ubuntu-latest
+            platforms: linux_amd64 linux_arm64
+            smoke: linux_amd64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: lorag
+      # VectixDB is a private repository: VECTIXDB_TOKEN is a fine-grained
+      # token with read access to raucheacho/vectixdb contents.
+      - uses: actions/checkout@v4
+        with:
+          repository: raucheacho/vectixdb
+          token: ${{ secrets.VECTIXDB_TOKEN }}
+          path: vectixdb
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: lorag/go.mod
+          cache-dependency-path: lorag/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: lorag/ui/package-lock.json
+
+      - name: Build the Studio
+        working-directory: lorag/ui
+        run: npm ci && npm run build
+      - name: Build the archives
+        working-directory: lorag
+        run: ./scripts/dist.sh "$GITHUB_REF_NAME" ${{ matrix.platforms }}
+      - name: Check the native binary
+        working-directory: lorag/dist
+        run: |
+          name="lorag_${GITHUB_REF_NAME#v}_${{ matrix.smoke }}"
+          tar -xzf "$name.tar.gz"
+          "$name/lorag" version | grep -F "${GITHUB_REF_NAME#v}"
+          "$name/loragctl" version | grep -F "${GITHUB_REF_NAME#v}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archives-${{ matrix.os }}
+          path: lorag/dist/*.tar.gz
+          if-no-files-found: error
+
   release:
+    needs: build
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: archives-*
+          path: dist
+          merge-multiple: true
+      - name: Checksums and Homebrew formula
+        run: |
+          (cd dist && sha256sum lorag_*.tar.gz > SHA256SUMS && cat SHA256SUMS)
+          LORAG_REPO="$GITHUB_REPOSITORY" ./scripts/homebrew.sh "$GITHUB_REF_NAME" dist/SHA256SUMS > dist/lorag.rb
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=
+          case "$GITHUB_REF_NAME" in *-*) prerelease=--prerelease ;; esac
+          gh release create "$GITHUB_REF_NAME" --draft --generate-notes $prerelease \
+            dist/*.tar.gz dist/SHA256SUMS dist/lorag.rb
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
-
-    - name: Set up Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: './web/package-lock.json'
-
-    - name: Install UI dependencies
-      working-directory: ./web
-      run: npm ci
-
-    - name: Build UI
-      working-directory: ./web
-      run: npm run build
-
-    - name: Copy UI to embed directory
-      run: |
-        mkdir -p ui/dist
-        cp -r web/dist/* ui/dist/
-
-    - name: Run GoReleaser
-      uses: goreleaser/goreleaser-action@v5
-      with:
-        distribution: goreleaser
-        version: latest
-        args: release --clean
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ghcr.io/${{ github.repository }}
-        tags: |
-          type=ref,event=tag
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+  docker:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: lorag
+      - uses: actions/checkout@v4
+        with:
+          repository: raucheacho/vectixdb
+          token: ${{ secrets.VECTIXDB_TOKEN }}
+          path: vectixdb
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      # amd64 only: building the engine for arm64 under emulation is too slow.
+      - uses: docker/build-push-action@v6
+        with:
+          context: lorag
+          build-contexts: vectixdb=vectixdb
+          build-args: VERSION=${{ steps.meta.outputs.version }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
