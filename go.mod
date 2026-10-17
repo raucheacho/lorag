@@ -15,11 +15,22 @@ require (
 
 require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/raucheacho/vectixdb/bindings/go/lib/darwin_amd64 v0.0.0 // indirect
+	github.com/raucheacho/vectixdb/bindings/go/lib/darwin_arm64 v0.0.0 // indirect
+	github.com/raucheacho/vectixdb/bindings/go/lib/linux_amd64 v0.0.0 // indirect
+	github.com/raucheacho/vectixdb/bindings/go/lib/linux_arm64 v0.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
 )
 
-// VectixDB checkout next to this repository (see BUILD_INSTRUCTIONS.md).
-replace github.com/raucheacho/vectixdb/bindings/go => ../vectixdb/bindings/go
+// VectixDB from the checkout next to this one (see BUILD_INSTRUCTIONS.md), until Lorag depends on a
+// published version of the binding (which carries its prebuilt libraries).
+replace (
+	github.com/raucheacho/vectixdb/bindings/go => ../vectixdb/bindings/go
+	github.com/raucheacho/vectixdb/bindings/go/lib/darwin_amd64 => ../vectixdb/bindings/go/lib/darwin_amd64
+	github.com/raucheacho/vectixdb/bindings/go/lib/darwin_arm64 => ../vectixdb/bindings/go/lib/darwin_arm64
+	github.com/raucheacho/vectixdb/bindings/go/lib/linux_amd64 => ../vectixdb/bindings/go/lib/linux_amd64
+	github.com/raucheacho/vectixdb/bindings/go/lib/linux_arm64 => ../vectixdb/bindings/go/lib/linux_arm64
+)

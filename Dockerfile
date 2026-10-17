@@ -20,7 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends xz-utils \
 
 # go.mod points the binding at ../vectixdb/bindings/go.
 COPY --from=vectixdb . /src/vectixdb
-RUN cd /src/vectixdb && rm -rf zig-out .zig-cache bindings/go/lib && ./scripts/go-libs.sh
+RUN cd /src/vectixdb && rm -rf zig-out .zig-cache bindings/go/lib/*/libvectixdb.a && ./scripts/go-libs.sh
 
 WORKDIR /src/lorag
 COPY go.mod go.sum ./

@@ -10,7 +10,7 @@ LDFLAGS=-ldflags "-s -w -X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIM
 # VectixDB checkout (search engine, linked through cgo)
 VECTIXDB ?= ../vectixdb
 HOST_PLATFORM=$(shell go env GOOS)_$(shell go env GOARCH)
-ENGINE_LIB=$(VECTIXDB)/bindings/go/lib/$(HOST_PLATFORM)/lib/libvectixdb.a
+ENGINE_LIB=$(VECTIXDB)/bindings/go/lib/$(HOST_PLATFORM)/libvectixdb.a
 
 # Directories
 BUILD_DIR=bin

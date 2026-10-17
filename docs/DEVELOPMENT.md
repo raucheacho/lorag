@@ -26,7 +26,7 @@ make build-server                # bin/lorag
 ./bin/lorag server -d ./data     # Studio on http://localhost:8080
 ```
 
-`go.mod` points the binding at the checkout with `replace github.com/raucheacho/vectixdb/bindings/go => ../vectixdb/bindings/go`. Use `make VECTIXDB=/elsewhere ...` for another location.
+`go.mod` points the binding and its per-platform library modules (`bindings/go/lib/<platform>`) at the checkout with `replace` directives. Use `make VECTIXDB=/elsewhere ...` for another location. Once VectixDB publishes a release, Lorag can require that version instead: the module then carries the prebuilt libraries and the build needs no Zig.
 
 ## Everyday commands
 
