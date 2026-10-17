@@ -14,6 +14,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/lorag/lorag/internal/activity"
+	"github.com/lorag/lorag/internal/config"
 	"github.com/lorag/lorag/internal/core/engine"
 	"github.com/lorag/lorag/internal/core/indexer"
 	"github.com/lorag/lorag/internal/core/query"
@@ -649,23 +650,50 @@ func (h *Handler) ReindexMedia(w http.ResponseWriter, r *http.Request) {
 	respondJSON(w, http.StatusOK, map[string]any{"status": "reindexing_started", "count": len(ids), "types": req.Types})
 }
 
+// whisperModels maps the names used by the settings to the model files.
+var whisperModels = map[string]parsers.WhisperModel{
+	"tiny":  parsers.WhisperTiny,
+	"base":  parsers.WhisperBase,
+	"small": parsers.WhisperSmall,
+}
+
+func whisperManager() *parsers.WhisperModelManager {
+	return parsers.NewWhisperModelManager(config.Home())
+}
+
 // GetModelStatus returns the status of the optional media models.
 func (h *Handler) GetModelStatus(w http.ResponseWriter, r *http.Request) {
 	settings, _ := h.Settings.GetAppSettings()
-	homeDir, _ := os.UserHomeDir()
-	manager := parsers.NewWhisperModelManager(filepath.Join(homeDir, ".lorag"))
+	manager := whisperManager()
+	status := map[string]string{}
+	progress := map[string]parsers.Progress{}
+	for name, model := range whisperModels {
+		status[name] = manager.GetStatusText(model)
+		progress[name] = manager.Progress(model)
+	}
 	respondJSON(w, http.StatusOK, map[string]any{
 		"ocr": map[string]any{"enabled": settings.OcrEnabled, "model": settings.OcrModel},
 		"transcription": map[string]any{
-			"enabled": settings.TranscriptionEnabled,
-			"model":   settings.WhisperModel,
-			"model_status": map[string]any{
-				"tiny":  manager.GetStatusText(parsers.WhisperTiny),
-				"base":  manager.GetStatusText(parsers.WhisperBase),
-				"small": manager.GetStatusText(parsers.WhisperSmall),
-			},
+			"enabled":      settings.TranscriptionEnabled,
+			"model":        settings.WhisperModel,
+			"model_status": status,
+			"progress":     progress,
 		},
 	})
+}
+
+// DownloadWhisperModel starts downloading a Whisper model in the background;
+// GET /models/status follows its progress.
+func (h *Handler) DownloadWhisperModel(w http.ResponseWriter, r *http.Request) {
+	name := chi.URLParam(r, "model")
+	model, ok := whisperModels[name]
+	if !ok {
+		respondError(w, http.StatusBadRequest, "unknown Whisper model: "+name)
+		return
+	}
+	manager := whisperManager()
+	manager.Download(model)
+	respondJSON(w, http.StatusAccepted, map[string]any{"model": name, "status": manager.GetStatusText(model), "progress": manager.Progress(model)})
 }
 
 func respondJSON(w http.ResponseWriter, status int, data any) {

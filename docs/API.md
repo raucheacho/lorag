@@ -150,7 +150,8 @@ Described in [MEMORY.md](MEMORY.md).
 | --- | --- | --- |
 | GET | `/settings` | All settings |
 | PUT | `/settings` | Partial update, validated; returns `{status, restart_required, settings}` |
-| GET | `/models/status` | OCR and transcription state, Whisper model download status |
+| GET | `/models/status` | OCR and transcription state; per Whisper model, `model_status` (`not_downloaded`, `downloading`, `ready`, `error`) and `progress` (`downloaded`, `total` bytes, `error`) |
+| POST | `/models/whisper/{tiny\|base\|small}/download` | Starts downloading the model to `~/.lorag/models` in the background (202); follow it with `/models/status` |
 
 | Setting | Default | Takes effect |
 | --- | --- | --- |

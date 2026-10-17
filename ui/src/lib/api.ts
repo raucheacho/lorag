@@ -342,9 +342,22 @@ export interface Settings {
   whisper_model: string;
 }
 
+export type WhisperStatus = 'not_downloaded' | 'downloading' | 'ready' | 'error';
+
+export interface DownloadProgress {
+  downloaded: number;
+  total: number; // 0 while unknown
+  error?: string;
+}
+
 export interface ModelStatus {
   ocr: { enabled: boolean; model: string };
-  transcription: { enabled: boolean; model: string; model_status: Record<string, string> };
+  transcription: {
+    enabled: boolean;
+    model: string;
+    model_status: Record<string, WhisperStatus>;
+    progress?: Record<string, DownloadProgress>;
+  };
 }
 
 export interface McpTool {
@@ -440,6 +453,7 @@ export const api = {
   saveSettings: (s: Partial<Settings>) =>
     request<{ restart_required: boolean; settings: Settings }>('PUT', v1('/settings'), s),
   models: () => request<ModelStatus>('GET', v1('/models/status')),
+  downloadWhisper: (model: string) => request<unknown>('POST', v1(`/models/whisper/${model}/download`)),
 };
 
 // MCP over HTTP, used by the Connect page to list tools and test the server.

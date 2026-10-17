@@ -94,6 +94,7 @@ func NewRouter(handler *Handler) http.Handler {
 		r.Get("/settings", handler.GetSettings)
 		r.Put("/settings", handler.UpdateSettings)
 		r.Get("/models/status", handler.GetModelStatus)
+		r.Post("/models/whisper/{model}/download", handler.DownloadWhisperModel)
 	})
 
 	r.Get("/*", studioHandler())

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 )
 
 // WhisperModel represents available whisper models
@@ -36,17 +37,38 @@ type DownloadProgress func(model WhisperModel, downloaded, total int64)
 // WhisperModelManager manages whisper.cpp binary and models
 type WhisperModelManager struct {
 	dataDir          string
-	status           map[WhisperModel]ModelStatus
-	statusMutex      sync.RWMutex
 	progressCallback DownloadProgress
 }
 
 // NewWhisperModelManager creates a new manager
 func NewWhisperModelManager(dataDir string) *WhisperModelManager {
-	return &WhisperModelManager{
-		dataDir: dataDir,
-		status:  make(map[WhisperModel]ModelStatus),
-	}
+	return &WhisperModelManager{dataDir: dataDir}
+}
+
+// Progress of a model download, shared by every manager of the process.
+type Progress struct {
+	Downloaded int64  `json:"downloaded"`
+	Total      int64  `json:"total"` // 0 while unknown
+	Error      string `json:"error,omitempty"`
+}
+
+type downloadState struct {
+	running           atomic.Bool
+	downloaded, total atomic.Int64
+	mu                sync.Mutex
+	err               string
+}
+
+// states holds the download state of each model path.
+var states sync.Map // model path → *downloadState
+
+func stateOf(path string) *downloadState {
+	v, _ := states.LoadOrStore(path, &downloadState{})
+	return v.(*downloadState)
+}
+
+func (m *WhisperModelManager) modelPath(model WhisperModel) string {
+	return filepath.Join(m.dataDir, "models", string(model))
 }
 
 // SetProgressCallback sets a callback for download progress
@@ -60,33 +82,53 @@ var downloads sync.Map // model path → *sync.Mutex
 
 // GetStatus returns the current status of a model
 func (m *WhisperModelManager) GetStatus(model WhisperModel) ModelStatus {
-	m.statusMutex.Lock()
-	defer m.statusMutex.Unlock()
-	
-	if status, ok := m.status[model]; ok {
-		return status
+	path := m.modelPath(model)
+	st := stateOf(path)
+	if st.running.Load() {
+		return ModelStatusDownloading
 	}
-	
-	// Check if file exists
-	modelPath := filepath.Join(m.dataDir, "models", string(model))
-	if _, err := os.Stat(modelPath); err == nil {
-		m.status[model] = ModelStatusReady
+	if _, err := os.Stat(path); err == nil {
 		return ModelStatusReady
 	}
-	
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	if st.err != "" {
+		return ModelStatusError
+	}
 	return ModelStatusNotDownloaded
 }
 
-// setStatus updates the status of a model
-func (m *WhisperModelManager) setStatus(model WhisperModel, status ModelStatus) {
-	m.statusMutex.Lock()
-	defer m.statusMutex.Unlock()
-	m.status[model] = status
+// Progress returns how far the current or last download of a model went.
+func (m *WhisperModelManager) Progress(model WhisperModel) Progress {
+	st := stateOf(m.modelPath(model))
+	st.mu.Lock()
+	defer st.mu.Unlock()
+	return Progress{Downloaded: st.downloaded.Load(), Total: st.total.Load(), Error: st.err}
+}
+
+// Download fetches a model in the background, unless it is present. A
+// download already running is not started twice: GetModelPath waits for it.
+func (m *WhisperModelManager) Download(model WhisperModel) {
+	if m.GetStatus(model) == ModelStatusReady {
+		return
+	}
+	// Downloading from now on, so a status read right after this call
+	// does not report the model as missing.
+	st := stateOf(m.modelPath(model))
+	st.running.Store(true)
+	go func() {
+		if _, err := m.GetModelPath(model); err != nil {
+			st.mu.Lock()
+			st.err = err.Error()
+			st.mu.Unlock()
+		}
+		st.running.Store(false)
+	}()
 }
 
 // GetModelPath returns the path to a model, downloading it if necessary
 func (m *WhisperModelManager) GetModelPath(model WhisperModel) (string, error) {
-	modelPath := filepath.Join(m.dataDir, "models", string(model))
+	modelPath := m.modelPath(model)
 
 	// One download per model: later callers wait, then find the file.
 	lock, _ := downloads.LoadOrStore(modelPath, &sync.Mutex{})
@@ -95,52 +137,65 @@ func (m *WhisperModelManager) GetModelPath(model WhisperModel) (string, error) {
 
 	// Check if model exists
 	if _, err := os.Stat(modelPath); err == nil {
-		m.setStatus(model, ModelStatusReady)
 		return modelPath, nil
 	}
-	
+
 	// Create models directory
 	if err := os.MkdirAll(filepath.Dir(modelPath), 0755); err != nil {
 		return "", fmt.Errorf("failed to create models directory: %w", err)
 	}
-	
+
 	// Download model
 	if err := m.downloadModel(model, modelPath); err != nil {
-		m.setStatus(model, ModelStatusError)
 		return "", err
 	}
-	
-	m.setStatus(model, ModelStatusReady)
 	return modelPath, nil
 }
 
 // downloadModel downloads a whisper model from HuggingFace
-func (m *WhisperModelManager) downloadModel(model WhisperModel, destPath string) error {
-	m.setStatus(model, ModelStatusDownloading)
-	
+func (m *WhisperModelManager) downloadModel(model WhisperModel, destPath string) (err error) {
+	st := stateOf(destPath)
+	st.mu.Lock()
+	st.err = ""
+	st.mu.Unlock()
+	st.downloaded.Store(0)
+	st.total.Store(0)
+	st.running.Store(true)
+	defer func() {
+		if err != nil {
+			st.mu.Lock()
+			st.err = err.Error()
+			st.mu.Unlock()
+		}
+		st.running.Store(false)
+	}()
+
 	url := fmt.Sprintf("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/%s", model)
-	
+
 	fmt.Printf("Downloading whisper model %s...\n", model)
-	
+
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to download model: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to download model: status %d", resp.StatusCode)
 	}
-	
+
 	totalSize := resp.ContentLength
-	
+	if totalSize > 0 {
+		st.total.Store(totalSize)
+	}
+
 	// Temporary file next to the destination, renamed once complete.
 	out, err := os.CreateTemp(filepath.Dir(destPath), filepath.Base(destPath)+".*.tmp")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 	tmpFile := out.Name()
-	
+
 	// Copy with progress tracking
 	var written int64
 	buf := make([]byte, 32*1024) // 32KB buffer
@@ -150,6 +205,7 @@ func (m *WhisperModelManager) downloadModel(model WhisperModel, destPath string)
 			nw, ew := out.Write(buf[0:nr])
 			if nw > 0 {
 				written += int64(nw)
+				st.downloaded.Store(written)
 				if m.progressCallback != nil && totalSize > 0 {
 					m.progressCallback(model, written, totalSize)
 				}
@@ -179,7 +235,7 @@ func (m *WhisperModelManager) downloadModel(model WhisperModel, destPath string)
 		os.Remove(tmpFile)
 		return fmt.Errorf("failed to save model: %w", err)
 	}
-	
+
 	fmt.Printf("Downloaded %s (%.1f MB)\n", model, float64(written)/(1024*1024))
 	return nil
 }
@@ -190,14 +246,14 @@ func (m *WhisperModelManager) GetWhisperCppPath() (string, error) {
 	if runtime.GOOS == "windows" {
 		binaryName = "whisper-cli.exe"
 	}
-	
+
 	binaryPath := filepath.Join(m.dataDir, "bin", binaryName)
-	
+
 	// Check if binary exists in our data dir
 	if _, err := os.Stat(binaryPath); err == nil {
 		return binaryPath, nil
 	}
-	
+
 	// Try system whisper
 	if path, err := exec.LookPath("whisper-cli"); err == nil {
 		return path, nil
@@ -208,7 +264,7 @@ func (m *WhisperModelManager) GetWhisperCppPath() (string, error) {
 	if path, err := exec.LookPath("main"); err == nil {
 		return path, nil
 	}
-	
+
 	return "", fmt.Errorf("WHISPER_CPP_NOT_FOUND: whisper.cpp n'est pas installé.\n\n" +
 		"Pour utiliser la transcription locale, vous devez installer whisper.cpp:\n" +
 		"  1. git clone https://github.com/ggerganov/whisper.cpp.git\n" +

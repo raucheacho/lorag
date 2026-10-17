@@ -1,8 +1,8 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { AlertTriangle, Archive, Hammer, PlugZap, RotateCw, Save } from 'lucide-react';
-import { api, EmbedderStatus, Settings } from '../lib/api';
+import { AlertTriangle, Archive, Download, Hammer, PlugZap, RotateCw, Save } from 'lucide-react';
+import { api, DownloadProgress, EmbedderStatus, Settings, WhisperStatus } from '../lib/api';
 import { useResource } from '../lib/hooks';
-import { ms } from '../lib/format';
+import { bytes, ms } from '../lib/format';
 import { useOverview } from '../components/Shell';
 import { useToast } from '../components/toast';
 import { Badge, Button, ErrorLine, Field, Input, NumberField, PageHeader, Section, Select, Toggle } from '../components/ui';
@@ -27,11 +27,21 @@ export function SettingsPage() {
     if (saved.data && !draft) setDraft(saved.data);
   }, [saved.data, draft]);
 
+  // Follow a Whisper model download until it ends.
+  const downloading = Object.values(models.data?.transcription.model_status ?? {}).includes('downloading');
+  useEffect(() => {
+    if (!downloading) return;
+    const t = setInterval(models.reload, 700);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [downloading]);
+
   if (!draft || !saved.data) return <PageHeader title="Settings" description={saved.error ?? 'Loading…'} />;
 
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setDraft({ ...draft, [k]: v });
   const changed = (Object.keys(draft) as (keyof Settings)[]).filter((k) => draft[k] !== saved.data![k]);
   const rebuilds = changed.some((k) => indexKeys.includes(k));
+  const recommendBge = draft.embedding_provider === 'ollama' && draft.embedding_model.split(':')[0] !== 'bge-m3';
 
   const save = async () => {
     setSaving(true);
@@ -109,7 +119,21 @@ export function SettingsPage() {
                 ]}
               />
             </Field>
-            <Field label="Model">{text('embedding_model', 'bge-m3')}</Field>
+            <Field
+              label="Model"
+              hint={
+                recommendBge
+                  ? 'bge-m3 is recommended: multilingual (a question in French finds an answer in English), and the memory thresholds are calibrated for it. Pull it first: ollama pull bge-m3.'
+                  : undefined
+              }
+            >
+              {text('embedding_model', 'bge-m3')}
+              {recommendBge && (
+                <Button size="sm" onClick={() => setDraft({ ...draft, embedding_model: 'bge-m3', embedding_dim: 1024 })}>
+                  Use bge-m3
+                </Button>
+              )}
+            </Field>
             <Field label="Endpoint">{text('embedding_url', 'http://localhost:11434')}</Field>
             <Field label="Dimension" hint="Must match what the model returns.">
               {num('embedding_dim', { min: 1, max: 65536 })}
@@ -230,7 +254,20 @@ export function SettingsPage() {
                       { value: 'small', label: 'Whisper small', hint: '466 MB' },
                     ]}
                   />
-                  {models.data && <Badge>{models.data.transcription.model_status[draft.whisper_model] ?? 'unknown'}</Badge>}
+                  {models.data && (
+                    <WhisperModelState
+                      status={models.data.transcription.model_status[draft.whisper_model]}
+                      progress={models.data.transcription.progress?.[draft.whisper_model]}
+                      onDownload={async () => {
+                        try {
+                          await api.downloadWhisper(draft.whisper_model);
+                        } catch (e) {
+                          toast.error(e);
+                        }
+                        models.reload();
+                      }}
+                    />
+                  )}
                 </>
               )}
             </Field>
@@ -282,5 +319,56 @@ function Group({ title, note, children }: { title: string; note?: string; childr
       {note && <div className="border-b border-line px-4 py-2 text-xs text-faint">{note}</div>}
       {children}
     </Section>
+  );
+}
+
+// The state of the chosen Whisper model: ready, a download button, or the
+// download's progress.
+function WhisperModelState({
+  status,
+  progress,
+  onDownload,
+}: {
+  status: WhisperStatus | undefined;
+  progress: DownloadProgress | undefined;
+  onDownload: () => void;
+}) {
+  if (status === 'ready') return <Badge tone="ok">Downloaded</Badge>;
+  if (status === 'downloading') {
+    const done = progress?.downloaded ?? 0;
+    const total = progress?.total ?? 0;
+    const pct = total > 0 ? Math.min(100, (done / total) * 100) : undefined;
+    return (
+      <div className="flex min-w-0 items-center gap-2" role="status" aria-live="polite">
+        <div
+          className="h-1.5 w-28 overflow-hidden rounded-full bg-raised"
+          role="progressbar"
+          aria-label="Download progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={pct === undefined ? undefined : Math.round(pct)}
+        >
+          <div
+            className={pct === undefined ? 'h-full w-1/3 animate-pulse rounded-full bg-accent' : 'h-full rounded-full bg-accent transition-[width] duration-500'}
+            style={pct === undefined ? undefined : { width: `${pct}%` }}
+          />
+        </div>
+        <span className="whitespace-nowrap font-mono text-2xs tabular text-muted">
+          {pct === undefined ? `Downloading… ${bytes(done)}` : `${Math.floor(pct)}% · ${bytes(done)} / ${bytes(total)}`}
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <Button size="sm" icon={<Download size={13} />} onClick={onDownload}>
+        {status === 'error' ? 'Retry download' : 'Download now'}
+      </Button>
+      {status === 'error' && progress?.error && (
+        <span className="truncate text-2xs text-bad" title={progress.error}>
+          {progress.error}
+        </span>
+      )}
+    </div>
   );
 }

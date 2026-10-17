@@ -124,12 +124,12 @@ Détails techniques : [docs/MEMORY.md](docs/MEMORY.md).
 
 | Groupe | Contenu | Prise en compte |
 | --- | --- | --- |
-| Embeddings | fournisseur, modèle, URL, dimension ; *Test embedder* | au redémarrage. Une nouvelle dimension reconstruit l'index et la mémoire automatiquement |
+| Embeddings | fournisseur, modèle, URL, dimension ; *Test embedder* ; *Use bge-m3* quand un autre modèle Ollama est choisi | au redémarrage. Un nouveau modèle ou une nouvelle dimension reconstruit l'index et recalcule la mémoire automatiquement |
 | Search index | distance, vecteurs int8, paramètres HNSW et BM25 | au redémarrage, puis reconstruction de l'index en arrière-plan ; les recherches continuent sur l'ancien index pendant ce temps |
 | Chunking and indexing | taille des chunks, chevauchement, travailleurs, limite | au redémarrage, pour les fichiers indexés ensuite |
 | MCP | présentation des résultats de recherche aux agents | immédiatement |
 | Memory | seuils de similarité du rappel (0 = valeurs calibrées pour le modèle) | au redémarrage |
-| Images and audio | description des images, transcription, modèle Whisper | au redémarrage |
+| Images and audio | description des images, transcription, modèle Whisper (*Download now* le télécharge et affiche la progression ; sinon il est téléchargé au premier fichier audio) | au redémarrage |
 | Maintenance | checkpoint, compactage, reconstruction de l'index | immédiatement |
 
 Une barre en bas de page signale les changements non enregistrés, et prévient quand un changement entraînera une reconstruction de l'index.
