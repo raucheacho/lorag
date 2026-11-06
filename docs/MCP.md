@@ -42,12 +42,12 @@ The `initialize` answer carries instructions for the agent:
 
 ### `memory_recall`, `memory_save`, `memory_feedback`
 
-The memory of fixes and answers, described in [MEMORY.md](MEMORY.md).
+The memory of fixes, answers and facts, described in [MEMORY.md](MEMORY.md).
 
 | Tool | Arguments |
 | --- | --- |
 | `memory_recall` | `error` (verbatim) or `query`, `project`, `context` (`{"expo": "52.0.1"}`), `k` (1), `budget_tokens` (60) |
-| `memory_save` | `solution` (required), `kind` (`fix` or `knowledge`), `problem`, `error`, `source`, `project`, `space`, `versions`, `platform`, `tags`, `solve_tokens` |
+| `memory_save` | `solution` (required), `kind` (`fix`, `knowledge` or `fact`), `problem`, `error`, `source`, `replaces`, `project`, `space`, `versions`, `platform`, `tags`, `solve_tokens` |
 | `memory_feedback` | `id`, `worked`, `note` |
 
 ### `search`

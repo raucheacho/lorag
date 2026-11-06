@@ -52,11 +52,12 @@ export function StatusBadge({ status }: { status: MemoryStatus }) {
 }
 
 export function KindBadge({ kind }: { kind: MemoryKind }) {
+  if (kind === 'fact') return <Badge tone="accent">fact</Badge>;
   return kind === 'knowledge' ? <Badge tone="vector">answer</Badge> : <Badge tone="keyword">fix</Badge>;
 }
 
-const answerLabel = (k: MemoryKind) => (k === 'knowledge' ? 'Answer' : 'Fix');
-const questionLabel = (k: MemoryKind) => (k === 'knowledge' ? 'Question' : 'Problem');
+const answerLabel = (k: MemoryKind) => ({ fix: 'Fix', knowledge: 'Answer', fact: 'Fact' })[k];
+const questionLabel = (k: MemoryKind) => ({ fix: 'Problem', knowledge: 'Question', fact: 'About' })[k];
 
 function SourceLink({ source }: { source: string }) {
   if (/^https?:\/\//.test(source))
@@ -109,7 +110,7 @@ export function MemoryPage() {
             <Stat
               label="Entries"
               value={num(s.entries)}
-              hint={`${s.by_kind?.fix ?? 0} fixes · ${s.by_kind?.knowledge ?? 0} answers · ${s.by_status.recheck ?? 0} to recheck`}
+              hint={`${s.by_kind?.fix ?? 0} fixes · ${s.by_kind?.knowledge ?? 0} answers · ${s.by_kind?.fact ?? 0} facts · ${s.by_status.recheck ?? 0} to recheck`}
             />
             <Stat
               label="Recall hit rate"
@@ -373,6 +374,7 @@ function Entries({ selected, onOpen, spaces }: { selected: string | null; onOpen
             { value: '', label: 'All' },
             { value: 'fix', label: 'Fixes' },
             { value: 'knowledge', label: 'Answers' },
+            { value: 'fact', label: 'Facts' },
           ]}
         />
         <Segmented<'' | MemoryStatus>
@@ -524,6 +526,7 @@ function EntryDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
                   options={[
                     { value: 'fix', label: 'Fix' },
                     { value: 'knowledge', label: 'Knowledge' },
+                    { value: 'fact', label: 'Fact' },
                   ]}
                 />
                 <Label>{questionLabel(kind)}</Label>
@@ -584,10 +587,10 @@ function EntryDrawer({ id, onClose, onChanged }: { id: string; onClose: () => vo
           />
           <div className="flex gap-2 border-b border-line px-4 py-3">
             <Button size="sm" icon={<ThumbsUp size={12} />} onClick={() => act(() => api.memoryFeedback(id, true), 'Recorded: it helped')}>
-              {e.kind === 'knowledge' ? 'Right' : 'It worked'}
+              {e.kind === 'fix' ? 'It worked' : 'Right'}
             </Button>
             <Button size="sm" icon={<ThumbsDown size={12} />} onClick={() => act(() => api.memoryFeedback(id, false), 'Recorded: it did not help')}>
-              {e.kind === 'knowledge' ? 'Wrong' : 'It failed'}
+              {e.kind === 'fix' ? 'It failed' : 'Wrong'}
             </Button>
           </div>
         </>
@@ -893,7 +896,9 @@ function NewEntry({ onClose, onCreated }: { onClose: () => void; onCreated: (id:
         platform: f.platform,
         tags: split(f.tags),
       });
-      toast.ok(r.action === 'created' ? 'Saved' : r.action === 'confirmed' ? 'Already known: confirmed' : 'Saved as another variant');
+      toast.ok(
+        r.action === 'created' ? 'Saved' : r.action === 'confirmed' ? 'Already known: confirmed' : r.action === 'replaced' ? 'Saved: the previous version is now obsolete' : 'Saved as another variant',
+      );
       onCreated(r.entry.id);
     } catch (e) {
       toast.error(e);
@@ -908,14 +913,15 @@ function NewEntry({ onClose, onCreated }: { onClose: () => void; onCreated: (id:
           options={[
             { value: 'fix', label: 'Fix', title: 'A problem likely to come back, and what solved it' },
             { value: 'knowledge', label: 'Knowledge', title: 'A question and its verified answer: a command, a value, an API detail, a decision' },
+            { value: 'fact', label: 'Fact', title: 'Something true about you or your world: a person, a preference, a commitment, a date. A new fact on the same thing replaces the old one' },
           ]}
         />
-        <Label>{kind === 'fix' ? 'Problem, in one line' : 'Question, in one line'}</Label>
+        <Label>{{ fix: 'Problem, in one line', knowledge: 'Question, in one line', fact: 'What it is about, as a question' }[kind]}</Label>
         <Input
           className="w-full"
           value={f.problem}
           onChange={set('problem')}
-          placeholder={kind === 'fix' ? 'Dev server port already in use' : 'Rate limit of the GitHub REST API'}
+          placeholder={{ fix: 'Dev server port already in use', knowledge: 'Rate limit of the GitHub REST API', fact: 'Who is Karim?' }[kind]}
         />
         {kind === 'fix' && (
           <>
@@ -923,7 +929,7 @@ function NewEntry({ onClose, onCreated }: { onClose: () => void; onCreated: (id:
             <textarea value={f.error} onChange={set('error')} rows={3} className="block w-full resize-y rounded-md border border-line-strong bg-canvas px-3 py-2 font-mono text-xs" />
           </>
         )}
-        <Label>{kind === 'fix' ? 'Fix' : 'Answer'}</Label>
+        <Label>{answerLabel(kind)}</Label>
         <textarea value={f.solution} onChange={set('solution')} rows={5} className="block w-full resize-y rounded-md border border-line-strong bg-canvas px-3 py-2 font-mono text-xs" />
         <Label>Source {kind === 'knowledge' ? '(recommended)' : '(optional)'}</Label>
         <Input className="w-full" value={f.source} onChange={set('source')} placeholder="https://… or a document" />

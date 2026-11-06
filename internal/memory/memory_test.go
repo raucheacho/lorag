@@ -302,3 +302,72 @@ func TestThresholdsByModel(t *testing.T) {
 		t.Fatalf("override: %+v", th)
 	}
 }
+
+// A fact about the person: found by its content, and replaced (not doubled)
+// when it changes; the old version stays in the history.
+func TestFacts(t *testing.T) {
+	s, done := open(t, t.TempDir(), 64)
+	defer done()
+	r, err := s.Save(SaveRequest{Kind: KindFact, Problem: "Who is Karim?", Solution: "Karim is the user's business partner since 2024", Space: "benom"})
+	if err != nil || r.Action != "created" || r.Entry.Kind != KindFact {
+		t.Fatalf("save: %v %+v", err, r)
+	}
+	rec, _ := s.Recall(RecallRequest{Query: "Karim business partner", Project: "benom", Budget: 120})
+	if len(rec.Matches) != 1 || !strings.Contains(rec.Text, "Fact: Karim is the user's business partner since 2024") || !strings.Contains(rec.Text, "About: Who is Karim?") {
+		t.Fatalf("recall:\n%s", rec.Text)
+	}
+	// Same content again: confirmed.
+	c, _ := s.Save(SaveRequest{Kind: KindFact, Problem: "Who is Karim?", Solution: "Karim is the user's business partner since 2024", Space: "benom"})
+	if c.Action != "confirmed" {
+		t.Fatalf("same fact: %s", c.Action)
+	}
+	// The fact changes: the new one replaces the old.
+	n, err := s.Save(SaveRequest{Kind: KindFact, Problem: "Who is Karim?", Solution: "Karim left the company in 2026; he is now a friend", Space: "benom"})
+	if err != nil || n.Action != "replaced" || len(n.Replaced) != 1 || n.Replaced[0] != r.Entry.ID {
+		t.Fatalf("changed fact: %v %+v", err, n)
+	}
+	old, evs, _ := s.Get(r.Entry.ID)
+	if old.Status != Obsolete || evs[len(evs)-1].Summary != "replaced by "+n.Entry.ID {
+		t.Fatalf("old entry: %s, events %+v", old.Status, evs)
+	}
+	rec, _ = s.Recall(RecallRequest{Query: "Karim left the company, now a friend", Project: "benom", K: 5, Budget: 200})
+	if len(rec.Matches) != 1 || rec.Matches[0].Entry.ID != n.Entry.ID {
+		t.Fatalf("recall after change: %+v", rec.Matches)
+	}
+	// A fact in another space is not touched.
+	o, _ := s.Save(SaveRequest{Kind: KindFact, Problem: "Who is Karim?", Solution: "Karim is the plumber", Space: "maison"})
+	if o.Action != "variant" || len(o.Replaced) != 0 {
+		t.Fatalf("other space: %+v", o)
+	}
+	// Update accepts the kind.
+	k := KindFact
+	if _, err := s.Update(o.Entry.ID, Edit{Kind: &k}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// replaces retires any entry that no longer holds, of any kind.
+func TestReplaces(t *testing.T) {
+	s, done := open(t, t.TempDir(), 64)
+	defer done()
+	a, _ := s.Save(SaveRequest{Problem: "default port of the dev server", Solution: "3000"})
+	b, err := s.Save(SaveRequest{Problem: "dev server port", Solution: "8080 since the proxy change", Replaces: "[" + a.Entry.ID + "]"})
+	if err != nil || b.Action != "replaced" || b.Replaced[0] != a.Entry.ID {
+		t.Fatalf("replaces: %v %+v", err, b)
+	}
+	if e, _, _ := s.Get(a.Entry.ID); e.Status != Obsolete {
+		t.Fatalf("status %s", e.Status)
+	}
+	// The new content is already known: confirmed, and the old one retired anyway.
+	c, _ := s.Save(SaveRequest{Problem: "staging url", Solution: "https://staging.example.com"})
+	d, _ := s.Save(SaveRequest{Problem: "dev server port", Solution: "8080 since the proxy change", Replaces: c.Entry.ID})
+	if d.Action != "confirmed" || len(d.Replaced) != 1 || d.Replaced[0] != c.Entry.ID {
+		t.Fatalf("confirmed with replaces: %+v", d)
+	}
+	if e, _, _ := s.Get(c.Entry.ID); e.Status != Obsolete {
+		t.Fatalf("not retired: %s", e.Status)
+	}
+	if _, err := s.Save(SaveRequest{Problem: "x", Solution: "y", Replaces: "nope-1"}); err == nil {
+		t.Fatal("unknown replaces accepted")
+	}
+}
