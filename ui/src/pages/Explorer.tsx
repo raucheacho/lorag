@@ -40,7 +40,7 @@ export function ExplorerPage() {
   const list = docs.data?.documents ?? [];
 
   return (
-    <div className="flex h-full">
+    <div className="relative flex h-full">
       <div className="flex min-w-0 flex-1 flex-col">
         <PageHeader title="Explorer" description="Documents in the store and the chunks the search index holds for them" />
         <div className="flex flex-wrap items-center gap-2 border-b border-line px-5 py-2.5">

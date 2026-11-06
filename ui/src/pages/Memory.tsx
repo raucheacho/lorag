@@ -87,7 +87,7 @@ export function MemoryPage() {
 
   const s = stats.data;
   return (
-    <div className="flex h-full">
+    <div className="relative flex h-full">
       <div className="flex min-w-0 flex-1 flex-col">
         <PageHeader
           title="Memory"
