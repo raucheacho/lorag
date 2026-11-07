@@ -47,7 +47,8 @@ class Lorag < Formula
   def install
     bin.install "lorag", "loragctl"
     prefix.install_metafiles
-    prefix.install "LICENSE.vectixdb", "NOTICE.vectixdb"
+    # install_metafiles already took LICENSE.vectixdb; NOTICE.vectixdb is left.
+    prefix.install Dir["*.vectixdb"]
   end
 
   service do
