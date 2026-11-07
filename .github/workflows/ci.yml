@@ -6,11 +6,6 @@ on:
   pull_request:
     branches: [main]
 
-# VectixDB is a private Go module: VECTIXDB_TOKEN is a fine-grained token
-# with read access to raucheacho/vectixdb contents.
-env:
-  GOPRIVATE: github.com/raucheacho/*
-
 jobs:
   test-go:
     runs-on: ubuntu-latest
@@ -19,10 +14,6 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: Access to the VectixDB module
-        env:
-          TOKEN: ${{ secrets.VECTIXDB_TOKEN }}
-        run: git config --global url."https://x-access-token:$TOKEN@github.com/raucheacho/".insteadOf "https://github.com/raucheacho/"
       - name: Placeholder UI (the server embeds ui/dist)
         run: mkdir -p ui/dist && touch ui/dist/index.html
       - run: go vet ./...
@@ -52,7 +43,6 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          secrets: github_token=${{ secrets.VECTIXDB_TOKEN }}
           push: false
           tags: lorag:test
           cache-from: type=gha

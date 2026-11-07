@@ -131,7 +131,7 @@ const tones: Record<Tone, string> = {
 
 export function Badge({ tone = 'neutral', children, className }: { tone?: Tone; children: ReactNode; className?: string }) {
   return (
-    <span className={cx('inline-flex h-5 items-center gap-1 rounded border px-1.5 text-2xs font-medium', tones[tone], className)}>
+    <span className={cx('inline-flex h-5 shrink-0 items-center gap-1 whitespace-nowrap rounded border px-1.5 text-2xs font-medium', tones[tone], className)}>
       {children}
     </span>
   );
@@ -239,7 +239,7 @@ export function Code({ children, copy }: { children: string; copy?: boolean }) {
 }
 
 // Drawer is the right-hand detail panel used by every table.
-export function Drawer({ open, onClose, title, subtitle, actions, children, width = 'w-[560px]' }: {
+export function Drawer({ open, onClose, title, subtitle, actions, children, width = 'w-[560px]', overlay = true }: {
   open: boolean;
   onClose: () => void;
   title: ReactNode;
@@ -247,6 +247,8 @@ export function Drawer({ open, onClose, title, subtitle, actions, children, widt
   actions?: ReactNode;
   children: ReactNode;
   width?: string;
+  /** Over the page (the parent is `relative`), the default: the content keeps its width. false: beside it. */
+  overlay?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -256,7 +258,13 @@ export function Drawer({ open, onClose, title, subtitle, actions, children, widt
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <aside className={cx('slide-in flex h-full max-w-full shrink-0 flex-col border-l border-line bg-surface', width)}>
+    <aside
+      className={cx(
+        'slide-in flex h-full max-w-full shrink-0 flex-col border-l border-line bg-surface',
+        overlay && 'absolute inset-y-0 right-0 z-30 shadow-[-12px_0_32px_-12px_rgba(0,0,0,0.45)]',
+        width,
+      )}
+    >
       <header className="flex min-h-[52px] items-center gap-3 border-b border-line px-4">
         <div className="min-w-0 flex-1 py-2">
           <div className="truncate text-[13px] font-semibold">{title}</div>

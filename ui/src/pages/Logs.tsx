@@ -41,7 +41,7 @@ export function LogsPage() {
     });
 
   return (
-    <div className="flex h-full">
+    <div className="relative flex h-full">
       <div className="flex min-w-0 flex-1 flex-col">
         <PageHeader title="Agent logs" description="Every search served since the server started: who asked, what came back, how fast (last 1,000 kept in memory)" />
         {s && (

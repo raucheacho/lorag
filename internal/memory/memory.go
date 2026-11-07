@@ -46,7 +46,18 @@ const (
 	// KindKnowledge is a question and its verified answer: a command, a
 	// configuration value, an API detail, a decision. Not a task.
 	KindKnowledge = "knowledge"
+	// KindFact is something true about the person or their world that a
+	// later conversation needs: a person ("Karim is my business partner"), a
+	// preference, a commitment, a date, a decision. A fact has one current
+	// truth: a new one about the same thing replaces the old one, which stays
+	// in the history as obsolete.
+	KindFact = "fact"
 )
+
+// validKind says whether k is a known kind.
+func validKind(k string) bool { return k == KindFix || k == KindKnowledge || k == KindFact }
+
+var errKind = fmt.Errorf("kind must be %s, %s or %s", KindFix, KindKnowledge, KindFact)
 
 const (
 	metaID          = "memory"
@@ -66,7 +77,7 @@ const (
 type Entry struct {
 	ID        string    `json:"id"`
 	Signature string    `json:"signature"`
-	Kind      string    `json:"kind"` // fix or knowledge
+	Kind      string    `json:"kind"` // fix, knowledge or fact
 	Variant   int       `json:"variant"`
 	Revision  int       `json:"revision"`
 	Problem   string    `json:"problem"`
@@ -247,14 +258,15 @@ func (s *Service) migrate(old, next string) error {
 }
 
 // embedText is what an entry's vector is computed from. A fix is found by
-// its problem and error; an answer also by its content, since that is
-// where the meaning often is ("Personal reminder" → "Eat before noon").
+// its problem and error; an answer or a fact also by its content, since
+// that is where the meaning often is ("Personal reminder" → "Eat before
+// noon", "Who is Karim?" → "my business partner").
 func embedText(e *Entry) string {
 	text := e.Problem
 	if e.Error != "" {
 		text += "\n" + errorLine(e.Error)
 	}
-	if kindOf(e) == KindKnowledge {
+	if k := kindOf(e); k == KindKnowledge || k == KindFact {
 		text += "\n" + e.Solution
 	}
 	return text
@@ -298,8 +310,8 @@ func doc(e *Entry, vec []float32) vtx.Doc {
 
 // kindOf is the entry's kind; entries saved before kinds existed are fixes.
 func kindOf(e *Entry) string {
-	if e.Kind == KindKnowledge {
-		return KindKnowledge
+	if e.Kind == KindKnowledge || e.Kind == KindFact {
+		return e.Kind
 	}
 	return KindFix
 }
@@ -380,10 +392,13 @@ func (s *Service) write(entries []*Entry, vecs [][]float32, events []Event, dele
 
 // SaveRequest is what an agent (or the person) knows once a problem is solved.
 type SaveRequest struct {
-	// Kind is fix (default when there is an error message) or knowledge.
-	Kind      string   `json:"kind,omitempty"`
-	Problem   string   `json:"problem"`  // the problem, or the question
-	Solution  string   `json:"solution"` // the fix, or the answer
+	// Kind is fix (default when there is an error message), knowledge or fact.
+	Kind     string `json:"kind,omitempty"`
+	Problem  string `json:"problem"`  // the problem, the question, or what the fact is about
+	Solution string `json:"solution"` // the fix, the answer, or the fact
+	// Replaces is the id of an entry this one makes obsolete: the person
+	// moved, the decision changed, the fix no longer applies.
+	Replaces  string   `json:"replaces,omitempty"`
 	Source    string   `json:"source,omitempty"`
 	Error     string   `json:"error,omitempty"`
 	Project   string   `json:"project,omitempty"`
@@ -399,7 +414,9 @@ type SaveRequest struct {
 // SaveResult says what happened to the saved knowledge.
 type SaveResult struct {
 	Entry  *Entry `json:"entry"`
-	Action string `json:"action"` // created, variant (another fix for a known problem), confirmed (same fix again)
+	Action string `json:"action"` // created, variant (another fix for a known problem), confirmed (same fix again), replaced (a fact changed)
+	// Replaced lists the entries this save made obsolete.
+	Replaced []string `json:"replaced,omitempty"`
 }
 
 // Save records a solved problem. A known problem with the same fix is
@@ -415,17 +432,18 @@ func (s *Service) Save(r SaveRequest) (*SaveResult, error) {
 	if r.Problem == "" || r.Solution == "" {
 		return nil, errors.New("problem (or question, or error) and solution (or answer) are required")
 	}
-	switch r.Kind {
-	case KindFix, KindKnowledge:
-	case "":
+	switch {
+	case validKind(r.Kind):
+	case r.Kind == "":
 		// An error message means a fix; otherwise it is knowledge.
 		r.Kind = KindKnowledge
 		if r.Error != "" {
 			r.Kind = KindFix
 		}
 	default:
-		return nil, fmt.Errorf("kind must be %s or %s", KindFix, KindKnowledge)
+		return nil, errKind
 	}
+	r.Replaces = strings.Trim(r.Replaces, "[] ")
 	r.Source = clean(MaskSecrets(r.Source), 500)
 	if r.Author != "person" {
 		r.Author = "agent"
@@ -446,6 +464,21 @@ func (s *Service) Save(r SaveRequest) (*SaveResult, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The entry named by Replaces, retired by this save whatever happens
+	// to the new content (created, variant or confirmed).
+	var retired *Entry
+	if r.Replaces != "" {
+		old, err := s.db.Get(s.entries, r.Replaces)
+		if err != nil {
+			return nil, err
+		}
+		if old == nil {
+			return nil, fmt.Errorf("replaces: %w: %s", ErrNotFound, r.Replaces)
+		}
+		if e, ok := decode(old); ok && e.Status != Obsolete {
+			retired = e
+		}
+	}
 	for _, v := range variants {
 		if v.Space == space && overlap(v.Solution, r.Solution) >= similarSolution {
 			v.Successes++
@@ -459,10 +492,16 @@ func (s *Service) Save(r SaveRequest) (*SaveResult, error) {
 				v.Status = Valid
 			}
 			ev := Event{ID: s.eventID(), At: now, Type: "confirm", Entry: v.ID, Actor: actor(r.Author, r.Origin), Summary: v.Problem, After: v}
-			if err := s.write([]*Entry{v}, nil, []Event{ev}); err != nil {
+			entries, events := []*Entry{v}, []Event{ev}
+			var replaced []string
+			if retired != nil && retired.ID != v.ID {
+				entries, events = append(entries, retire(retired, now)), append(events, s.retireEvent(retired, v.ID, actor(r.Author, r.Origin), now))
+				replaced = []string{retired.ID}
+			}
+			if err := s.write(entries, nil, events); err != nil {
 				return nil, err
 			}
-			return &SaveResult{Entry: v, Action: "confirmed"}, nil
+			return &SaveResult{Entry: v, Action: "confirmed", Replaced: replaced}, nil
 		}
 	}
 
@@ -470,6 +509,19 @@ func (s *Service) Save(r SaveRequest) (*SaveResult, error) {
 	for _, v := range variants {
 		if v.Variant >= variant {
 			variant = v.Variant + 1
+		}
+	}
+	// What the new entry makes obsolete: the entry named by Replaces, and
+	// for a fact, the other current versions of the same fact.
+	var stale []*Entry
+	if retired != nil {
+		stale = append(stale, retired)
+	}
+	if r.Kind == KindFact {
+		for _, v := range variants {
+			if v.Space == space && v.Status != Obsolete && v.ID != r.Replaces {
+				stale = append(stale, v)
+			}
 		}
 	}
 	cost := r.SolveCost
@@ -492,11 +544,32 @@ func (s *Service) Save(r SaveRequest) (*SaveResult, error) {
 	if variant > 1 {
 		typ, action = "variant", "variant"
 	}
-	ev := Event{ID: s.eventID(), At: now, Type: typ, Entry: e.ID, Actor: actor(r.Author, r.Origin), Summary: e.Problem, After: e}
-	if err := s.write([]*Entry{e}, [][]float32{vec}, []Event{ev}); err != nil {
+	entries, vecs := []*Entry{e}, [][]float32{vec}
+	events := []Event{{ID: s.eventID(), At: now, Type: typ, Entry: e.ID, Actor: actor(r.Author, r.Origin), Summary: e.Problem, After: e}}
+	var replaced []string
+	for _, old := range stale {
+		entries = append(entries, retire(old, now))
+		vecs = append(vecs, nil)
+		events = append(events, s.retireEvent(old, e.ID, actor(r.Author, r.Origin), now))
+		replaced = append(replaced, old.ID)
+	}
+	if err := s.write(entries, vecs, events); err != nil {
 		return nil, err
 	}
-	return &SaveResult{Entry: e, Action: action}, nil
+	if len(replaced) > 0 {
+		action = "replaced"
+	}
+	return &SaveResult{Entry: e, Action: action, Replaced: replaced}, nil
+}
+
+// retire marks an entry obsolete (replaced by another one).
+func retire(old *Entry, now time.Time) *Entry {
+	old.Status, old.Updated = Obsolete, now
+	return old
+}
+
+func (s *Service) retireEvent(old *Entry, by, who string, now time.Time) Event {
+	return Event{ID: s.eventID(), At: now, Type: "status", Entry: old.ID, Actor: who, Summary: "replaced by " + by, After: old}
 }
 
 func actor(author, origin string) string {
@@ -838,8 +911,11 @@ func format(ms []Match, budget int) (string, int) {
 		}
 		block.WriteString("\n")
 		label, question := "Fix: ", "Problem: "
-		if kindOf(e) == KindKnowledge {
+		switch kindOf(e) {
+		case KindKnowledge:
 			label, question = "Answer: ", "Q: "
+		case KindFact:
+			label, question = "Fact: ", "About: "
 		}
 		if m.By != "signature" {
 			block.WriteString(question + e.Problem + "\n")
@@ -1014,8 +1090,8 @@ func (s *Service) Update(id string, ed Edit) (*Entry, error) {
 		e.Source = clean(MaskSecrets(*ed.Source), 500)
 	}
 	if ed.Kind != nil {
-		if *ed.Kind != KindFix && *ed.Kind != KindKnowledge {
-			return nil, fmt.Errorf("kind must be %s or %s", KindFix, KindKnowledge)
+		if !validKind(*ed.Kind) {
+			return nil, errKind
 		}
 		e.Kind = *ed.Kind
 	}

@@ -11,11 +11,6 @@ permissions:
   contents: write
   packages: write
 
-# VectixDB is a private Go module: VECTIXDB_TOKEN is a fine-grained token
-# with read access to raucheacho/vectixdb contents.
-env:
-  GOPRIVATE: github.com/raucheacho/*
-
 jobs:
   build:
     strategy:
@@ -44,11 +39,6 @@ jobs:
           node-version: '20'
           cache: npm
           cache-dependency-path: ui/package-lock.json
-      - name: Access to the VectixDB module
-        env:
-          TOKEN: ${{ secrets.VECTIXDB_TOKEN }}
-        run: git config --global url."https://x-access-token:$TOKEN@github.com/raucheacho/".insteadOf "https://github.com/raucheacho/"
-
       - name: Build the Studio
         working-directory: ui
         run: npm ci && npm run build
@@ -112,7 +102,6 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          secrets: github_token=${{ secrets.VECTIXDB_TOKEN }}
           build-args: VERSION=${{ steps.meta.outputs.version }}
           platforms: linux/amd64
           push: true

@@ -1,15 +1,15 @@
 # État du projet
 
-Mis à jour le 16 octobre 2026. Ce document sert à reprendre le développement : où en sont les phases de la fiche technique, ce qui a été décidé, ce qui reste à faire et les problèmes connus.
+Mis à jour le 17 octobre 2026. Ce document sert à reprendre le développement : où en sont les phases de la fiche technique, ce qui a été décidé, ce qui reste à faire et les problèmes connus.
 
 ## Les deux projets
 
 | Projet | Rôle | Dépôt | Licence |
 | --- | --- | --- | --- |
-| **VectixDB** | Moteur de recherche embarqué générique (Zig, API C, binding Go) | `github.com/raucheacho/vectixdb` (privé) | Apache-2.0 |
-| **Lorag** | L'application : démon Go, MCP, Studio, mémoire des agents | `github.com/raucheacho/lorag` (privé) | MIT |
+| **VectixDB** | Moteur de recherche embarqué générique (Zig, API C, binding Go) | `github.com/raucheacho/vectixdb` (public), version 0.1.0 publiée | Apache-2.0 |
+| **Lorag** | L'application : démon Go, MCP, Studio, mémoire des agents | `github.com/raucheacho/lorag` (public) | MIT |
 
-Lorag utilise VectixDB comme une bibliothèque liée dans le démon : pas de second processus. Le moteur ne connaît rien des agents ni de la mémoire ; Lorag construit tout ça avec des champs génériques.
+Lorag utilise VectixDB comme une bibliothèque liée dans le démon : pas de second processus. Il dépend d'une version publiée du module Go, qui contient les bibliothèques précompilées : Zig n'est pas nécessaire pour compiler Lorag. Le moteur ne connaît rien des agents ni de la mémoire ; Lorag construit tout ça avec des champs génériques.
 
 ## Phases de la fiche
 
@@ -78,30 +78,27 @@ Le nom du modèle fait maintenant partie de l'empreinte de l'index et de celle d
 
 ## À faire
 
-### Bloquant pour la CI et les releases
-1. **CI de Lorag.** Créer le secret `VECTIXDB_TOKEN` dans le dépôt Lorag : un token fine-grained avec l'accès *Contents: read* sur `raucheacho/vectixdb`. Il sert à télécharger le module Go privé (go et Docker) ; une clé de déploiement SSH ne convient plus.
-2. **Première release.** Le workflow est prêt (`release.yml`, `scripts/dist.sh`) mais n'a pas encore tourné sur GitHub ; les archives ont été construites et vérifiées en local (macOS arm64 et Intel, Linux amd64 et arm64 sur Debian 10 et Ubuntu 20.04). Il manque :
-   - décider si Lorag devient public, ou si les binaires vont dans un dépôt public séparé : Homebrew et `install.sh` ne savent pas télécharger depuis un dépôt privé ;
-   - créer le dépôt du tap Homebrew (`raucheacho/homebrew-tap`) ;
+### Bloquant pour les releases
+1. **Première release.** Le workflow est prêt (`release.yml`, `scripts/dist.sh`) mais n'a pas encore tourné sur GitHub ; les archives ont été construites et vérifiées en local (macOS arm64 et Intel, Linux amd64 et arm64 sur Debian 10 et Ubuntu 20.04). Il manque :
    - lister les licences des dépendances Go dans les archives (`go-licenses`) ;
    - l'image Docker arm64 (runner arm64 natif) ;
    - une commande `lorag service install` pour lancer Lorag avec la session sans Homebrew ni `install.sh`.
 
 ### Mémoire
-3. Recalibrer les seuils de bge-m3 sur tes vraies entrées après quelques jours d'usage (Memory → Test a recall).
-4. Mesurer le critère de la phase 3 : 20 problèmes répétés sur un usage réel, tokens économisés relevés dans Mémoire → Tendances.
-5. Décider si une entrée enregistrée par un agent doit être validée par toi avant d'être rappelée (statut « proposée »).
+2. Recalibrer les seuils de bge-m3 sur tes vraies entrées après quelques jours d'usage (Memory → Test a recall).
+3. Mesurer le critère de la phase 3 : 20 problèmes répétés sur un usage réel, tokens économisés relevés dans Mémoire → Tendances.
+4. Décider si une entrée enregistrée par un agent doit être validée par toi avant d'être rappelée (statut « proposée »).
 
 ### Studio et documentation
-6. **Tests UI.** Mettre les tests d'interface dans le dépôt (`ui/e2e/`, Playwright) avec un script qui crée des données de test.
-7. **Docs utilisateur.** Relire `USER_GUIDE.md` et `QUICKSTART.md` après chaque changement d'écran.
+5. **Tests UI.** Mettre les tests d'interface dans le dépôt (`ui/e2e/`, Playwright) avec un script qui crée des données de test.
+6. **Docs utilisateur.** Relire `USER_GUIDE.md` et `QUICKSTART.md` après chaque changement d'écran.
 
 ### Moteur (VectixDB)
-8. **Primitives de la phase 2** dans le moteur : modulation du score par un champ ou par le temps, diversité MMR, budget de tokens, validité par plage de versions. Lorag les fait aujourd'hui de son côté.
-9. **Racinisation optionnelle** par champ texte.
-10. **Windows.** Le moteur ne compile pas pour Windows (`src/fs.zig` suppose des descripteurs de fichier entiers ; la CLI utilise `getrusage`). La correction de compilation est petite ; le travail est de valider la résistance aux plantages (remplacement atomique, synchronisation du dossier, verrou) sur un runner Windows.
-11. **Reste de la feuille de route** dans `vectixdb/docs/DEVELOPMENT.md` : mmap, group commit, vecteurs épars, fuzzing, binding Python.
+7. **Primitives de la phase 2** dans le moteur : modulation du score par un champ ou par le temps, diversité MMR, budget de tokens, validité par plage de versions. Lorag les fait aujourd'hui de son côté.
+8. **Racinisation optionnelle** par champ texte.
+9. **Windows.** Le moteur ne compile pas pour Windows (`src/fs.zig` suppose des descripteurs de fichier entiers ; la CLI utilise `getrusage`). La correction de compilation est petite ; le travail est de valider la résistance aux plantages (remplacement atomique, synchronisation du dossier, verrou) sur un runner Windows.
+10. **Reste de la feuille de route** dans `vectixdb/docs/DEVELOPMENT.md` : mmap, group commit, vecteurs épars, fuzzing, binding Python.
 
 ### Fiche technique
-12. **Phase 5 : plusieurs appareils.** Le journal de VectixDB et celui de la mémoire sont la base de la réplication.
-13. **Sécurité.** Chiffrement au repos, avec la clé dans le trousseau du système : prévu par la fiche, pas fait.
+11. **Phase 5 : plusieurs appareils.** Le journal de VectixDB et celui de la mémoire sont la base de la réplication.
+12. **Sécurité.** Chiffrement au repos, avec la clé dans le trousseau du système : prévu par la fiche, pas fait.

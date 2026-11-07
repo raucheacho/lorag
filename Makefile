@@ -83,10 +83,9 @@ run: build-server
 	@echo "Starting Lorag server..."
 	./$(BUILD_DIR)/$(BINARY_NAME) server
 
-# Docker build: GITHUB_TOKEN reads the private VectixDB module,
-# e.g. GITHUB_TOKEN=$$(gh auth token) make docker-build
+# Docker build
 docker-build:
-	docker build --secret id=github_token,env=GITHUB_TOKEN -t lorag:$(VERSION) .
+	docker build -t lorag:$(VERSION) .
 
 # Docker run
 docker-run:

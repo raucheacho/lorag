@@ -178,7 +178,7 @@ export interface Chunk {
 
 export type MemoryStatus = 'valid' | 'recheck' | 'obsolete';
 
-export type MemoryKind = 'fix' | 'knowledge';
+export type MemoryKind = 'fix' | 'knowledge' | 'fact';
 
 export interface MemoryEntry {
   id: string;

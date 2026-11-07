@@ -83,7 +83,7 @@ func memRecallCmd() *cobra.Command {
 }
 
 func memSaveCmd() *cobra.Command {
-	var kind, problem, fix, answer, source, errText, project, space, platform string
+	var kind, problem, fix, answer, source, errText, project, space, platform, replaces string
 	var versions, tags []string
 	var cost int
 	cmd := &cobra.Command{
@@ -105,7 +105,7 @@ func memSaveCmd() *cobra.Command {
 			}
 			resp, err := apiPost("/memory/", map[string]any{
 				"kind": kind, "problem": problem, "solution": fix, "source": source, "error": errText, "project": project, "space": space,
-				"platform": platform, "versions": versions, "tags": tags, "solve_tokens": cost, "origin": "loragctl",
+				"platform": platform, "versions": versions, "tags": tags, "solve_tokens": cost, "origin": "loragctl", "replaces": replaces,
 			})
 			if err != nil {
 				return err
@@ -115,10 +115,11 @@ func memSaveCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&kind, "kind", "", "fix or knowledge (default: fix with --error, else knowledge)")
-	cmd.Flags().StringVar(&problem, "problem", "", "the problem or the question, in one line")
+	cmd.Flags().StringVar(&kind, "kind", "", "fix, knowledge or fact (default: fix with --error, else knowledge)")
+	cmd.Flags().StringVar(&problem, "problem", "", "the problem, the question, or what the fact is about, in one line")
 	cmd.Flags().StringVar(&fix, "fix", "", "the fix")
-	cmd.Flags().StringVar(&answer, "answer", "", "the answer (same as --fix, for knowledge)")
+	cmd.Flags().StringVar(&answer, "answer", "", "the answer or the fact (same as --fix, for knowledge and facts)")
+	cmd.Flags().StringVar(&replaces, "replaces", "", "id of an entry this one makes obsolete")
 	cmd.Flags().StringVar(&source, "source", "", "where the answer comes from (URL, document)")
 	cmd.Flags().StringVar(&errText, "error", "", "the error message, or - for stdin")
 	cmd.Flags().StringVarP(&project, "project", "p", "", "project name")

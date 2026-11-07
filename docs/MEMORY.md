@@ -6,12 +6,15 @@ Agents keep redoing the same work:
 
 Lorag keeps what is already known and gives it back in a few tokens, before the agent searches.
 
-An entry is one of two kinds:
+Lorag is not only for code. A voice assistant, a support agent or a writing tool need the same thing: not to ask again what they were already told. An entry is one of three kinds:
 
 | Kind | What it holds | Example |
 | --- | --- | --- |
 | `fix` | A problem likely to come back, and what solved it | `EADDRINUSE :::3000` → `lsof -ti :3000 \| xargs kill -9` |
 | `knowledge` | A question and its verified answer, with its source | "GitHub REST API rate limit" → "5,000 requests per hour per user", docs.github.com |
+| `fact` | Something true about the person or their world that a later conversation needs: a person, a preference, a commitment, a date, a decision | "Who is Karim?" → "Karim is the user's business partner since 2024" |
+
+A fact has one current truth. Saving a different fact about the same thing (same question, same space) replaces the old one: it becomes `obsolete`, stays in the history, and is no longer recalled. Fixes and answers keep their variants instead, since several fixes can work.
 
 An entry is information, not a task. A recalled fix is not a bug to fix and a recalled answer is not an instruction: the agent uses them only if they fit its situation. This is said in the instructions every agent receives.
 
@@ -19,8 +22,8 @@ An entry is information, not a task. A recalled fix is not a bug to fix and a re
 
 ## The loop
 
-1. **Recall first.** On an error, or before searching the web, the agent calls `memory_recall` with the error message as is, or with its question.
-2. **Save what is worth keeping.** A fix with the problem in one line, the error message and the versions involved; or an answer with the question and the source.
+1. **Recall first.** On an error, before searching the web, or before answering about the person or someone they mention, the agent calls `memory_recall` with the error message as is, or with its question.
+2. **Save what is worth keeping.** A fix with the problem in one line, the error message and the versions involved; an answer with the question and the source; a fact with what it is about, phrased as the question someone would ask ("Who is Karim?").
 3. **Report.** After using a recalled entry, it calls `memory_feedback` with the entry id and whether it helped: the fix worked, or the answer was right.
 
 The MCP server sends these rules to every agent in its `initialize` instructions.
@@ -89,8 +92,8 @@ To calibrate another model:
 | Field | Meaning |
 | --- | --- |
 | `id` | `<signature>-<variant>` |
-| `kind` | `fix` or `knowledge`. Without it: `fix` when an error message is given, else `knowledge` |
-| `problem`, `error`, `solution` | Problem or question, error message, fix or answer. Secrets are masked before writing: API keys (`sk-…`, `ghp_…`, `AKIA…`), JWTs, bearer tokens, `password=`, `*_SECRET_KEY=`, private keys, credentials in URLs |
+| `kind` | `fix`, `knowledge` or `fact`. Without it: `fix` when an error message is given, else `knowledge` |
+| `problem`, `error`, `solution` | Problem, question or what a fact is about; error message; fix, answer or fact. Secrets are masked before writing: API keys (`sk-…`, `ghp_…`, `AKIA…`), JWTs, bearer tokens, `password=`, `*_SECRET_KEY=`, private keys, credentials in URLs |
 | `space` | `global`, or a project name. A recall with `project` searches that project and `global` |
 | `versions`, `platform` | What the fix was verified with: `expo@52`, `node@22` |
 | `status` | `valid`, `recheck` or `obsolete` |
@@ -104,6 +107,8 @@ To calibrate another model:
 - **A new problem** creates variant 1.
 - **The same problem, in the same space, with the same fix** (word overlap of at least 60 %) confirms the entry: one more success, verified today.
 - **The same problem with a different fix** becomes another variant. Variants are ranked by status, then by successes minus twice the failures.
+- **The same fact with a different content** replaces it: the previous versions in the same space become `obsolete` (event `status`, "replaced by …").
+- **`replaces`** names any entry that no longer holds (the port changed, the decision was reversed): it becomes `obsolete` in the same write.
 
 ### Feedback and aging
 
