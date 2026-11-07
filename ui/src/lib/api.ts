@@ -307,6 +307,18 @@ export interface Ingestion {
   events: IngestEvent[];
 }
 
+export interface DirEntry {
+  name: string;
+  path: string;
+}
+
+export interface DirListing {
+  path: string;
+  parent: string;
+  dirs: DirEntry[];
+  shortcuts: DirEntry[];
+}
+
 export interface Watch {
   id: string;
   path: string;
@@ -423,6 +435,8 @@ export const api = {
     request<{ message: string; chunks: number; task_id?: string }>('POST', v1('/index/file'), { path, async: true }),
   indexDirectory: (path: string, recursive: boolean) =>
     request<{ message: string }>('POST', v1('/index/directory'), { path, recursive, async: true }),
+
+  dirs: (path?: string, hidden?: boolean) => request<DirListing>('GET', v1(`/fs/dirs${qs({ path, hidden: hidden ? 1 : undefined })}`)),
 
   watches: () => request<{ watches: Watch[] }>('GET', v1('/watches/')),
   addWatch: (path: string, recursive: boolean) => request<Watch>('POST', v1('/watches/'), { path, recursive }),

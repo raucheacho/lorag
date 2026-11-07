@@ -96,6 +96,6 @@ Next:
   ollama pull bge-m3        # embeddings (https://ollama.com)
   sudo apt install poppler-utils ffmpeg tesseract-ocr   # PDF pages, audio, video, OCR (Debian, Ubuntu)
   lorag server              # unless installed with --service
-  open http://localhost:8080
+  lorag open                # the Studio, http://localhost:8080
 Data is stored in ~/.lorag/data.
 EOF

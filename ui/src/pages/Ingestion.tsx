@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, FolderInput, Loader2, Plus, Trash2, UploadCloud } from 'lucide-react';
+import { Eye, FolderInput, FolderOpen, Loader2, Plus, Trash2, UploadCloud } from 'lucide-react';
 import { api, ApiError, IngestEvent, upload, UploadResult } from '../lib/api';
 import { useResource } from '../lib/hooks';
 import { ago, bytes, clock, dateTime, ms, num, shortPath } from '../lib/format';
 import { useOverview } from '../components/Shell';
 import { useToast } from '../components/toast';
+import { FolderPicker } from '../components/FolderPicker';
 import { Badge, Button, Empty, ErrorLine, Input, PageHeader, Section, Segmented, Stat, Toggle } from '../components/ui';
 
 export function StatusBadge({ status }: { status: IngestEvent['status'] }) {
@@ -23,6 +24,7 @@ export function IngestionPage() {
   const [watch, setWatch] = useState(false);
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState<'all' | 'failed'>('all');
+  const [picking, setPicking] = useState(false);
 
   const add = async () => {
     const p = path.trim();
@@ -82,6 +84,9 @@ export function IngestionPage() {
               onChange={(e) => setPath(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && add()}
             />
+            <Button icon={<FolderOpen size={14} />} onClick={() => setPicking(true)}>
+              Browse…
+            </Button>
             <Toggle checked={recursive} onChange={setRecursive} label="Subfolders" />
             <Toggle checked={watch} onChange={setWatch} label="Keep watching" />
             <Button variant="primary" icon={<Plus size={14} />} disabled={busy || !path.trim()} onClick={add}>
@@ -89,9 +94,19 @@ export function IngestionPage() {
             </Button>
           </div>
           <div className="border-t border-line px-4 py-2 text-xs text-faint">
-            The path is read by the server, so it must exist on the machine running Lorag. Unchanged files are skipped.
+            Type a path or browse the folders of the machine running Lorag. Unchanged files are skipped.
           </div>
           <DropZone onDone={() => { ingestion.reload(); overview.reload(); }} />
+          {picking && (
+            <FolderPicker
+              initial={path}
+              onClose={() => setPicking(false)}
+              onPick={(p) => {
+                setPath(p);
+                setPicking(false);
+              }}
+            />
+          )}
         </Section>
 
         <div className="grid grid-cols-2 divide-x divide-line rounded-lg border border-line bg-surface md:grid-cols-4">

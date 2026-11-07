@@ -15,7 +15,7 @@ Installation : [QUICKSTART.md](QUICKSTART.md).
 
 ## Le Studio
 
-Ouvrez http://localhost:8080.
+Ouvrez http://localhost:8080, ou lancez `lorag open` si vous avez oublié l'adresse.
 
 - **Raccourcis :** `⌘K` (ou `Ctrl+K`) ouvre la palette de commandes, qui sert à changer de page, lancer une recherche ou une action ; `/` place le curseur dans le champ de recherche de la page.
 - **Thème :** le sélecteur est en bas de la barre latérale (système, clair, sombre).

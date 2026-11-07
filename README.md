@@ -27,7 +27,7 @@ curl -fsSL https://raw.githubusercontent.com/raucheacho/lorag/main/scripts/insta
 ollama pull bge-m3
 ```
 
-Studio sur http://localhost:8080, données dans `~/.lorag/data`.
+Studio sur http://localhost:8080 (`lorag open` l'ouvre dans le navigateur), données dans `~/.lorag/data`.
 
 ## Installation depuis les sources
 
