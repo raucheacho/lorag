@@ -144,5 +144,5 @@ Adding them under `ui/e2e/` with a seed script is in [STATUS.md](STATUS.md).
   - a draft GitHub release gets the archives, `SHA256SUMS` and the Homebrew formula from `scripts/homebrew.sh`;
   - the Docker image goes to `ghcr.io` (amd64 only for now).
 
-  Publish the draft by hand, then copy `lorag.rb` to the tap repository. Details in [BUILD_INSTRUCTIONS.md](../BUILD_INSTRUCTIONS.md).
+  Publish the draft by hand: `.github/workflows/tap.yml` then pushes `lorag.rb` to `raucheacho/homebrew-tap` with the secret `HOMEBREW_TAP_TOKEN` (skipped for prereleases). Details in [BUILD_INSTRUCTIONS.md](../BUILD_INSTRUCTIONS.md).
 - **Installation.** `scripts/install.sh` installs a release in `~/.local/bin` after checking its checksum, and with `--service` adds a systemd user unit. `LORAG_DOWNLOAD_URL` points it at a local mirror for testing.
