@@ -87,8 +87,7 @@ Chaque archive `lorag_<version>_<os>_<arch>.tar.gz` contient `lorag`, `loragctl`
 
 1. Mettre à jour le CHANGELOG si besoin, puis pousser un tag : `git tag v0.1.0 && git push origin v0.1.0`.
 2. Le workflow `release.yml` compile les archives (macOS sur un runner macOS, Linux avec `zig cc`), vérifie le binaire natif de chaque runner, puis crée une **release en brouillon** avec les archives, `SHA256SUMS` et la formule Homebrew `lorag.rb`. Il pousse aussi l'image Docker (`ghcr.io/raucheacho/lorag`, amd64).
-3. Relire le brouillon, puis le publier.
-4. Copier `lorag.rb` dans le dépôt du tap Homebrew (`Formula/lorag.rb`).
+3. Relire le brouillon, puis le publier. Le workflow `tap.yml` pousse alors `lorag.rb` dans le tap Homebrew (`raucheacho/homebrew-tap`, `Formula/lorag.rb`) avec le secret `HOMEBREW_TAP_TOKEN`. Une préversion ne touche pas au tap.
 
 Un tag avec un tiret (`v0.1.0-rc.1`) donne une préversion.
 

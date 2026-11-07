@@ -79,7 +79,7 @@ Le nom du modèle fait maintenant partie de l'empreinte de l'index et de celle d
 ## À faire
 
 ### Bloquant pour les releases
-1. **Première release.** Le workflow est prêt (`release.yml`, `scripts/dist.sh`) mais n'a pas encore tourné sur GitHub ; les archives ont été construites et vérifiées en local (macOS arm64 et Intel, Linux amd64 et arm64 sur Debian 10 et Ubuntu 20.04). Il manque :
+1. **Releases suivantes.** v0.1.0 est publiée (7 novembre 2026) : archives macOS et Linux, image Docker amd64, formule dans `raucheacho/homebrew-tap`, poussée par `tap.yml` à la publication d'une release. Il manque :
    - lister les licences des dépendances Go dans les archives (`go-licenses`) ;
    - l'image Docker arm64 (runner arm64 natif) ;
    - une commande `lorag service install` pour lancer Lorag avec la session sans Homebrew ni `install.sh`.
