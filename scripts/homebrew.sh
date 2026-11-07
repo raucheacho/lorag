@@ -20,7 +20,6 @@ cat <<EOF
 class Lorag < Formula
   desc "Local memory and search for AI agents, over MCP"
   homepage "https://github.com/$repo"
-  version "$version"
   license "MIT"
 
   on_macos do
