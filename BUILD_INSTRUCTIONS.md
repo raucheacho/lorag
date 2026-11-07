@@ -9,13 +9,6 @@
 | Compilateur C | | macOS : `xcode-select --install` ; Linux : `build-essential` |
 | Zig | 0.16.0 | seulement pour les archives Linux (`zig cc` comme compilateur C croisé) |
 
-VectixDB est un module Go privé. Une fois pour toutes :
-
-```sh
-go env -w GOPRIVATE='github.com/raucheacho/*'   # ni proxy ni base de sommes publics pour ce module
-gh auth setup-git                               # ou une clé SSH : git doit pouvoir lire raucheacho/vectixdb
-```
-
 Outils facultatifs pour l'extraction locale (PDF par page, audio, vidéo, OCR) : voir [docs/MEDIA_INDEXING.md](docs/MEDIA_INDEXING.md). Sans eux, les fichiers concernés échouent avec un message clair dans Ingestion, et le reste s'indexe normalement.
 
 ## Comment le moteur est lié
@@ -58,12 +51,12 @@ Détails : [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## Docker
 
-L'image est construite sur Debian (la bibliothèque VectixDB est liée à la glibc ; Alpine ne convient pas). Le module VectixDB étant privé, la construction reçoit un jeton GitHub comme secret, qui ne reste pas dans l'image :
+L'image est construite sur Debian (la bibliothèque VectixDB est liée à la glibc ; Alpine ne convient pas). :
 
 ```sh
-GITHUB_TOKEN=$(gh auth token) make docker-build
+make docker-build
 # ou
-GITHUB_TOKEN=$(gh auth token) docker build --secret id=github_token,env=GITHUB_TOKEN -t lorag .
+docker build -t lorag .
 
 docker run -p 8080:8080 -v "$PWD/data:/data" \
   -e LORAG_EMBEDDING_URL=http://host.docker.internal:11434 lorag
@@ -103,6 +96,5 @@ Un tag avec un tiret (`v0.1.0-rc.1`) donne une préversion.
 
 | Erreur | Solution |
 | --- | --- |
-| `reading github.com/raucheacho/vectixdb/...: 404` ou `terminal prompts disabled` | Module privé : `GOPRIVATE` et accès git, voir les prérequis |
 | `pattern all:dist: no matching files found` | Compiler le Studio d'abord : `cd ui && npm run build` |
 | `zig: command not found` (archives Linux) | Installer Zig 0.16.0 |

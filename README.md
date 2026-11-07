@@ -34,8 +34,7 @@ Studio sur http://localhost:8080, données dans `~/.lorag/data`.
 Prérequis :
 - Go 1.24 ;
 - Node.js 20 ;
-- [Ollama](https://ollama.com) ;
-- un accès git au dépôt privé VectixDB, et `go env -w GOPRIVATE='github.com/raucheacho/*'`.
+- [Ollama](https://ollama.com).
 
 ```sh
 git clone https://github.com/raucheacho/lorag

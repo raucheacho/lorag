@@ -6,10 +6,10 @@ Mis à jour le 17 octobre 2026. Ce document sert à reprendre le développement 
 
 | Projet | Rôle | Dépôt | Licence |
 | --- | --- | --- | --- |
-| **VectixDB** | Moteur de recherche embarqué générique (Zig, API C, binding Go) | `github.com/raucheacho/vectixdb` (privé), version 0.1.0 publiée | Apache-2.0 |
-| **Lorag** | L'application : démon Go, MCP, Studio, mémoire des agents | `github.com/raucheacho/lorag` (privé) | MIT |
+| **VectixDB** | Moteur de recherche embarqué générique (Zig, API C, binding Go) | `github.com/raucheacho/vectixdb` (public), version 0.1.0 publiée | Apache-2.0 |
+| **Lorag** | L'application : démon Go, MCP, Studio, mémoire des agents | `github.com/raucheacho/lorag` (public) | MIT |
 
-Lorag utilise VectixDB comme une bibliothèque liée dans le démon : pas de second processus. Il dépend d'une version publiée du module Go, qui contient les bibliothèques précompilées : Zig n'est pas nécessaire pour compiler Lorag. La CI lit ce module privé avec le secret `VECTIXDB_TOKEN`. Le moteur ne connaît rien des agents ni de la mémoire ; Lorag construit tout ça avec des champs génériques.
+Lorag utilise VectixDB comme une bibliothèque liée dans le démon : pas de second processus. Il dépend d'une version publiée du module Go, qui contient les bibliothèques précompilées : Zig n'est pas nécessaire pour compiler Lorag. Le moteur ne connaît rien des agents ni de la mémoire ; Lorag construit tout ça avec des champs génériques.
 
 ## Phases de la fiche
 
@@ -80,8 +80,6 @@ Le nom du modèle fait maintenant partie de l'empreinte de l'index et de celle d
 
 ### Bloquant pour les releases
 1. **Première release.** Le workflow est prêt (`release.yml`, `scripts/dist.sh`) mais n'a pas encore tourné sur GitHub ; les archives ont été construites et vérifiées en local (macOS arm64 et Intel, Linux amd64 et arm64 sur Debian 10 et Ubuntu 20.04). Il manque :
-   - décider si Lorag devient public, ou si les binaires vont dans un dépôt public séparé : Homebrew et `install.sh` ne savent pas télécharger depuis un dépôt privé ;
-   - créer le dépôt du tap Homebrew (`raucheacho/homebrew-tap`) ;
    - lister les licences des dépendances Go dans les archives (`go-licenses`) ;
    - l'image Docker arm64 (runner arm64 natif) ;
    - une commande `lorag service install` pour lancer Lorag avec la session sans Homebrew ni `install.sh`.

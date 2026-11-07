@@ -13,8 +13,6 @@ Read [ARCHITECTURE.md](ARCHITECTURE.md) first, and [STATUS.md](STATUS.md) for wh
 | poppler (`pdftotext`), ffmpeg, whisper-cpp, tesseract | optional | PDF pages, audio and video, OCR ([MEDIA_INDEXING.md](MEDIA_INDEXING.md)) |
 
 ```sh
-go env -w GOPRIVATE='github.com/raucheacho/*'   # VectixDB is a private module
-gh auth setup-git                               # or an SSH key: git must read raucheacho/vectixdb
 (cd ui && npm ci && npm run build)
 make build-server                # bin/lorag
 ./bin/lorag server -d ./data     # Studio on http://localhost:8080
@@ -39,7 +37,7 @@ go work init . ../vectixdb/bindings/go ../vectixdb/bindings/go/lib/darwin_arm64
 | `make test` | `go test -v ./...` |
 | `go test -race ./...` | What CI runs |
 | `(cd ui && npx tsc --noEmit)` | Typecheck the Studio |
-| `GITHUB_TOKEN=$(gh auth token) make docker-build` | Image; the token reads the private VectixDB module |
+| `make docker-build` | Docker image |
 | `make dist` | Release archive for the host in `dist/`; `PLATFORMS="darwin_arm64 linux_amd64 ..."` for others |
 
 ### Configuration for development
@@ -138,9 +136,8 @@ Adding them under `ui/e2e/` with a seed script is in [STATUS.md](STATUS.md).
 
 ## CI and Docker
 
-- **Private module.** The workflows read the VectixDB module with the secret `VECTIXDB_TOKEN`, a fine-grained token with read access to the contents of `raucheacho/vectixdb`: a git `insteadOf` rule for `go`, a build secret for Docker.
 - **Tests.** `.github/workflows/ci.yml` runs `go vet` and the Go tests with `-race`, the UI build and the Docker build.
-- **Image.** The `Dockerfile` is Debian-based (the VectixDB library needs glibc) and takes the token as the build secret `github_token`, kept out of the layers.
+- **Image.** The `Dockerfile` is Debian-based (the VectixDB library needs glibc).
 - **Releases.** A tag `v<version>` runs `.github/workflows/release.yml`:
   - `scripts/dist.sh` builds the archives: macOS on a macOS runner (Apple clang, the binary links Apple frameworks), Linux with `zig cc` against glibc 2.28;
   - each runner checks its native binary;

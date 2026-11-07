@@ -6,17 +6,10 @@ Dix minutes, depuis les sources. Il n'y a pas encore d'installeur.
 
 ```sh
 # macOS
-brew install go node ollama gh
+brew install go node ollama
 brew install poppler ffmpeg whisper-cpp tesseract   # facultatif : PDF par page, audio, vidéo, OCR
 ollama serve &                                       # si Ollama ne tourne pas déjà
 ollama pull bge-m3          # modèle d'embedding multilingue (français, anglais, arabe…), 1,2 Go
-```
-
-VectixDB, le moteur de recherche, est un module Go privé :
-
-```sh
-gh auth login && gh auth setup-git
-go env -w GOPRIVATE='github.com/raucheacho/*'
 ```
 
 ## 2. Compiler
