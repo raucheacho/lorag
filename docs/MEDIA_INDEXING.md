@@ -19,23 +19,21 @@ Les pages, diapositives et feuilles ne sont jamais fusionnées entre elles. Les 
 
 ## Outils à installer
 
-Tout tourne en local. Sans l'outil d'un type de fichier, ce type échoue avec un message clair dans la page Ingestion, et le reste s'indexe normalement.
+Tout tourne en local. La formule Homebrew (`brew install raucheacho/tap/lorag`) installe déjà poppler, ffmpeg, whisper.cpp et tesseract. Sur Linux ou depuis les sources, installez-les vous-même ; sans l'outil d'un type de fichier, ce type échoue avec un message clair dans la page Ingestion, et le reste s'indexe normalement.
 
 | Outil | Pour | macOS | Debian, Ubuntu |
 | --- | --- | --- | --- |
 | `pdftotext` (poppler) | PDF page par page | `brew install poppler` | `apt install poppler-utils` |
 | `ffmpeg`, `ffprobe` | audio et vidéo | `brew install ffmpeg` | `apt install ffmpeg` |
-| `whisper-cli` (whisper.cpp) | transcription | `brew install whisper-cpp` | à compiler depuis github.com/ggml-org/whisper.cpp |
+| `whisper-cli` (whisper.cpp) | transcription | `brew install whisper.cpp` | à compiler depuis github.com/ggml-org/whisper.cpp |
 | `tesseract` | texte dans les images et à l'écran des vidéos | `brew install tesseract` | `apt install tesseract-ocr` |
 | Ollama + modèle de vision | description des images (facultatif) | `ollama pull llava:7b` | idem |
 
 Sans `pdftotext`, Lorag extrait quand même le texte des PDF, mais sans les numéros de page.
 
-## Activer l'audio et la vidéo
+## L'audio et la vidéo
 
-1. Installer `ffmpeg` et `whisper-cpp`.
-2. Studio → Settings → Images and audio : activer **Audio transcription** et choisir le modèle Whisper.
-3. Redémarrer Lorag.
+La transcription est activée par défaut : il suffit que `ffmpeg` et `whisper-cli` soient installés. Pour changer de modèle Whisper ou la désactiver : Studio → Settings → Images and audio, puis redémarrer Lorag.
 
 | Modèle | Taille | Remarque |
 | --- | --- | --- |

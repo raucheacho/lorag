@@ -239,7 +239,7 @@ export function SettingsPage() {
               <Toggle checked={draft.ocr_enabled} onChange={(v) => set('ocr_enabled', v)} />
               {draft.ocr_enabled && text('ocr_model', 'llava:7b')}
             </Field>
-            <Field label="Audio transcription" hint="Audio and video, with timestamps. Needs whisper-cli (brew install whisper-cpp) and ffmpeg.">
+            <Field label="Audio transcription" hint="Audio and video, with timestamps. Needs whisper-cli and ffmpeg (installed with the Homebrew formula).">
               <Toggle checked={draft.transcription_enabled} onChange={(v) => set('transcription_enabled', v)} />
               {draft.transcription_enabled && (
                 <>

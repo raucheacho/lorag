@@ -162,7 +162,7 @@ Described in [MEMORY.md](MEMORY.md).
 | `chunk_size` (characters), `chunk_overlap`, `index_workers`, `max_chunks` | 512, 50, 3, 50000 | restart; files indexed afterwards |
 | `default_template` | `default` | immediately (MCP search answers) |
 | `ocr_enabled`, `ocr_model` | false, `llava:7b` | restart (image description through Ollama) |
-| `transcription_enabled`, `whisper_model` | false, `tiny` | restart (audio and video) |
+| `transcription_enabled`, `whisper_model` | true, `tiny` | restart (audio and video) |
 
 ## MCP
 

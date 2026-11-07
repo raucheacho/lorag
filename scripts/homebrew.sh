@@ -22,6 +22,12 @@ class Lorag < Formula
   homepage "https://github.com/$repo"
   license "MIT"
 
+  # Local extraction: PDF pages, audio and video transcription, OCR.
+  depends_on "ffmpeg"
+  depends_on "poppler"
+  depends_on "tesseract"
+  depends_on "whisper.cpp"
+
   on_macos do
     on_arm do
       url "$base/lorag_${version}_darwin_arm64.tar.gz"
@@ -64,9 +70,6 @@ class Lorag < Formula
     <<~TEXT
       Lorag needs Ollama for embeddings (https://ollama.com):
         ollama pull bge-m3
-
-      Optional, for PDF pages, audio, video and OCR:
-        brew install poppler ffmpeg whisper-cpp tesseract
 
       Data is stored in ~/.lorag/data. The Studio is on http://localhost:8080.
     TEXT
