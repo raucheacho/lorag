@@ -113,6 +113,7 @@ To open a source at a chunk's position: `/documents/{id}/file#page=3` for a PDF,
 
 | Method | Path | |
 | --- | --- | --- |
+| GET | `/fs/dirs?path=&hidden=1` | `{path, parent, dirs: [{name, path}], shortcuts}`: subfolders of a folder on the server (home by default), for the Studio's folder picker |
 | GET | `/watches/` | `{watches: [{id, path, recursive, patterns, created_at}]}` |
 | POST | `/watches/` | `{path, recursive, patterns}`; persisted in the settings |
 | DELETE | `/watches/{id}` | |

@@ -2,7 +2,13 @@ package main
 
 import (
 	"fmt"
+	"net"
+	"net/http"
 	"os"
+	"os/exec"
+	"runtime"
+	"strconv"
+	"time"
 
 	"github.com/lorag/lorag/internal/config"
 	"github.com/lorag/lorag/internal/server"
@@ -31,6 +37,7 @@ semantic search, all while keeping your data private and local.`,
 
 	// Add commands
 	rootCmd.AddCommand(serverCmd())
+	rootCmd.AddCommand(openCmd())
 	rootCmd.AddCommand(versionCmd())
 
 	if err := rootCmd.Execute(); err != nil {
@@ -97,6 +104,47 @@ func versionCmd() *cobra.Command {
 		Short: "Print version information",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Printf("Lorag %s (commit %s, built %s, VectixDB %s)\n", Version, Commit, BuildTime, vectixdb.Version())
+		},
+	}
+}
+
+// openCmd opens the Studio in the browser, for when its address is forgotten.
+func openCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:           "open",
+		Short:         "Open the Studio in the browser",
+		SilenceUsage:  true,
+		SilenceErrors: true, // main prints it
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cfg, err := config.Load()
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+			host := cfg.ServerHost
+			if host == "" || host == "0.0.0.0" || host == "::" {
+				host = "localhost"
+			}
+			url := "http://" + net.JoinHostPort(host, strconv.Itoa(cfg.ServerPort))
+
+			client := http.Client{Timeout: 2 * time.Second}
+			resp, err := client.Get(url + "/health")
+			if err != nil {
+				return fmt.Errorf("lorag is not running on %s. Start it with `brew services start lorag`, `systemctl --user start lorag` or `lorag server`", url)
+			}
+			resp.Body.Close()
+
+			fmt.Println("Studio:", url)
+			var opener *exec.Cmd
+			switch runtime.GOOS {
+			case "darwin":
+				opener = exec.Command("open", url)
+			default:
+				opener = exec.Command("xdg-open", url)
+			}
+			if err := opener.Start(); err != nil {
+				fmt.Fprintln(os.Stderr, "Open this address in your browser.")
+			}
+			return nil
 		},
 	}
 }

@@ -45,6 +45,7 @@ func NewRouter(handler *Handler) http.Handler {
 			r.Post("/save", handler.SaveIndex)
 		})
 
+		r.Get("/fs/dirs", handler.ListDirs)
 		r.Get("/ingestion", handler.Ingestion)
 		r.Post("/upload", handler.Upload)
 		r.Route("/queue", func(r chi.Router) {

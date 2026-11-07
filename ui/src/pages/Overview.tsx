@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, FolderPlus, TerminalSquare } from 'lucide-react';
+import { ArrowRight, FolderOpen, FolderPlus, TerminalSquare } from 'lucide-react';
+import { FolderPicker } from '../components/FolderPicker';
 import { api } from '../lib/api';
 import { useResource } from '../lib/hooks';
 import { ago, bytes, duration, ms, num, shortPath } from '../lib/format';
@@ -191,6 +192,7 @@ function GetStarted() {
   const [path, setPath] = useState('');
   const [watch, setWatch] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
   const embedder = useResource(api.embedder, []);
 
   const add = async () => {
@@ -241,11 +243,24 @@ function GetStarted() {
               onChange={(ev) => setPath(ev.target.value)}
               onKeyDown={(ev) => ev.key === 'Enter' && add()}
             />
+            <Button icon={<FolderOpen size={14} />} onClick={() => setPicking(true)}>
+              Browse…
+            </Button>
             <Toggle checked={watch} onChange={setWatch} label="Watch" />
             <Button variant="primary" icon={<FolderPlus size={14} />} disabled={busy || !path.trim()} onClick={add}>
               Index
             </Button>
           </div>
+          {picking && (
+            <FolderPicker
+              initial={path}
+              onClose={() => setPicking(false)}
+              onPick={(p) => {
+                setPath(p);
+                setPicking(false);
+              }}
+            />
+          )}
         </li>
         <li className="flex items-center gap-3 px-4 py-3">
           <Step n={3} done={false} />

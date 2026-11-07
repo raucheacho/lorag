@@ -28,7 +28,7 @@ make build
 ./bin/lorag server
 ```
 
-Ouvrez http://localhost:8080.
+Ouvrez http://localhost:8080 (ou `lorag open`).
 
 - Les données vont dans `~/.lorag/data`. Pour un autre dossier : `./bin/lorag server -d ~/lorag-data`.
 - Pour un autre port : `-p 8090`.
