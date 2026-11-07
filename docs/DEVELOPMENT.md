@@ -10,7 +10,7 @@ Read [ARCHITECTURE.md](ARCHITECTURE.md) first, and [STATUS.md](STATUS.md) for wh
 | Zig | 0.16.0 | only for the Linux release archives (`zig cc`) |
 | Node.js | 20 | the Studio |
 | Ollama | any | embeddings (`ollama pull bge-m3`) and image description |
-| poppler (`pdftotext`), ffmpeg, whisper-cpp, tesseract | optional | PDF pages, audio and video, OCR ([MEDIA_INDEXING.md](MEDIA_INDEXING.md)) |
+| poppler (`pdftotext`), ffmpeg, whisper.cpp, tesseract | optional | PDF pages, audio and video, OCR ([MEDIA_INDEXING.md](MEDIA_INDEXING.md)) |
 
 ```sh
 (cd ui && npm ci && npm run build)

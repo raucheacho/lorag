@@ -7,7 +7,7 @@ Dix minutes, depuis les sources. Il n'y a pas encore d'installeur.
 ```sh
 # macOS
 brew install go node ollama
-brew install poppler ffmpeg whisper-cpp tesseract   # facultatif : PDF par page, audio, vidéo, OCR
+brew install poppler ffmpeg whisper.cpp tesseract   # PDF par page, audio, vidéo, OCR (inclus avec la formule Homebrew de Lorag)
 ollama serve &                                       # si Ollama ne tourne pas déjà
 ollama pull bge-m3          # modèle d'embedding multilingue (français, anglais, arabe…), 1,2 Go
 ```
@@ -71,7 +71,7 @@ L'agent reçoit sept outils, dont :
 | *Embedder unavailable* dans la barre latérale | Ollama ne tourne pas, ou le modèle manque : `ollama serve`, `ollama pull bge-m3` |
 | `database locked by another process` | Un autre `lorag server` utilise le même dossier de données |
 | Un PDF n'a pas de numéro de page | `pdftotext` n'est pas installé |
-| Un audio ou une vidéo échoue avec `TRANSCRIPTION_DISABLED` | Settings → Images and audio → Audio transcription, puis redémarrer |
+| Un audio ou une vidéo échoue avec `TRANSCRIPTION_DISABLED` | La transcription a été désactivée : Settings → Images and audio → Audio transcription, puis redémarrer |
 | Aucun résultat | Vérifiez dans Explorer que le fichier est indexé ; pour un identifiant exact, essayez le mode *Exact* |
 | `max chunks limit reached (5000)` | Sans clé de licence, l'index est limité à 5 000 chunks (voir [docs/STATUS.md](docs/STATUS.md)) |
 

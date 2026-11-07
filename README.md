@@ -44,7 +44,7 @@ make build            # Studio, bin/lorag et bin/loragctl
 ./bin/lorag server    # Studio sur http://localhost:8080
 ```
 
-Outils facultatifs pour les PDF, l'audio, la vidéo et les images : [docs/MEDIA_INDEXING.md](docs/MEDIA_INDEXING.md). Docker et compilation détaillée : [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md).
+Avec Homebrew, les outils pour les PDF, l'audio, la vidéo et les images sont installés avec Lorag ; sur Linux : [docs/MEDIA_INDEXING.md](docs/MEDIA_INDEXING.md). Docker et compilation détaillée : [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md).
 
 ## Démarrage
 

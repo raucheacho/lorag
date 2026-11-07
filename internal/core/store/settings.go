@@ -159,6 +159,7 @@ func DefaultSettings() *AppSettings {
 		IndexWorkers:         3,
 		DefaultTemplate:      "default",
 		OcrModel:             "llava:7b",
+		TranscriptionEnabled: true, // fails with a clear message when ffmpeg or whisper-cli is missing
 		WhisperModel:         "tiny",
 	}
 }
