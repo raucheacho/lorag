@@ -47,8 +47,7 @@ go work init . ../vectixdb/bindings/go ../vectixdb/bindings/go/lib/darwin_arm64
 | `LORAG_DATA_DIR` | `~/.lorag/data` | use a scratch directory to test; one server per directory |
 | `LORAG_HOST`, `LORAG_PORT` | `localhost`, `8080` | |
 | `LORAG_EMBEDDING_PROVIDER`, `_MODEL`, `_URL`, `_DIM`, `_API_KEY` | from the settings | override the persisted settings at start |
-| `LORAG_MAX_CHUNKS` | 50,000 | applies only with a license key |
-| `LORAG_LICENSE_KEY` | empty | without it, the chunk limit is **5,000** (`config.MaxChunksAllowed`) |
+| `LORAG_MAX_CHUNKS` | from the settings (`max_chunks`, 0: no limit) | caps the index size; parallel workers reserve their chunks, so the cap holds |
 | `LORAG_MAX_QUEUE_SIZE` | 100 | |
 
 Every other setting (embedding model, index parameters, chunking, media) lives in BoltDB and is edited in Studio → Settings. Most take effect on restart.

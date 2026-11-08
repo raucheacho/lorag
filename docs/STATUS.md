@@ -67,7 +67,6 @@ Le nom du modèle fait maintenant partie de l'empreinte de l'index et de celle d
 
 ### Autres
 
-- **Limite de 5 000 chunks.** Sans `LORAG_LICENSE_KEY`, `config.MaxChunksAllowed` plafonne l'index à 5 000 chunks. C'est un reste de l'ancien modèle « gratuit / payant » : à décider.
 - **Activity log.** Il est en mémoire : les Agent logs repartent de zéro au redémarrage. Les statistiques de la mémoire, elles, viennent du journal persistant.
 - **Préfixes nomic.** `nomic-embed-text` est utilisé sans ses préfixes `search_query:` et `search_document:`. Mesuré : pas de gain en français, donc laissé ainsi.
 - **Vidéo, détection de scène.** Deux diapositives qui ne diffèrent que par du texte ne déclenchent pas la détection de changement de scène. Une image est donc prise au moins toutes les 5 secondes (ou durée/120). La position du texte à l'écran est précise à cet intervalle près.

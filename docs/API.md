@@ -160,7 +160,7 @@ Described in [MEMORY.md](MEMORY.md).
 | `memory_min_similarity`, `memory_min_similarity_text` | 0 (calibrated for the model) | restart |
 | `vector_metric`, `vector_quantized`, `vector_m`, `vector_ef`, `bm25_k1`, `bm25_b` | `cosine`, false, 16, 200, 1.2, 0.75 | restart, then a rebuild of the index |
 | `vector_ef_search` | 64 | restart |
-| `chunk_size` (characters), `chunk_overlap`, `index_workers`, `max_chunks` | 512, 50, 3, 50000 | restart; files indexed afterwards |
+| `chunk_size` (characters), `chunk_overlap`, `index_workers`, `max_chunks` (0: no limit) | 512, 50, 3, 0 | restart; files indexed afterwards |
 | `default_template` | `default` | immediately (MCP search answers) |
 | `ocr_enabled`, `ocr_model` | false, `llava:7b` | restart (image description through Ollama) |
 | `transcription_enabled`, `whisper_model` | true, `tiny` | restart (audio and video) |

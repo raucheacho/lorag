@@ -197,4 +197,4 @@ Les versions précédentes rangeaient les données dans `./data`, relatif au dos
 | *out of sync* sur Overview | L'index est en reconstruction, ou des chunks manquent : Settings → Rebuild index |
 | Un fichier échoue | Ingestion → Failed donne la raison (outil manquant, transcription désactivée, fichier illisible) |
 | Un rappel de mémoire ne trouve pas une entrée existante | Memory → Test a recall avec la même question : en cas d'échec, il montre l'entrée la plus proche et sa similarité face au seuil. Avec un modèle peu multilingue (`nomic-embed-text`), passez à `bge-m3` ; sinon ajustez les seuils dans Settings → Memory |
-| `max chunks limit reached (5000)` | Limite sans clé de licence, voir [docs/STATUS.md](docs/STATUS.md) |
+| `chunk limit reached (N)` | L'index a atteint la limite choisie : Settings → Max chunks (0 pour aucune limite) ou `LORAG_MAX_CHUNKS`, puis redémarrer |

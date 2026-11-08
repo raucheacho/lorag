@@ -22,10 +22,8 @@ type Config struct {
 	EmbeddingDim      int    `env:"LORAG_EMBEDDING_DIM"`
 	EmbeddingAPIKey   string `env:"LORAG_EMBEDDING_API_KEY"`
 
-	MaxChunks    int `env:"LORAG_MAX_CHUNKS" envDefault:"50000"`
+	MaxChunks    int `env:"LORAG_MAX_CHUNKS"` // overrides the max_chunks setting; 0: no limit
 	MaxQueueSize int `env:"LORAG_MAX_QUEUE_SIZE" envDefault:"100"`
-
-	LicenseKey string `env:"LORAG_LICENSE_KEY"`
 }
 
 // Load loads configuration from environment variables
@@ -89,17 +87,4 @@ func (c *Config) IndexDir() string {
 // GetAddress returns the full server address
 func (c *Config) GetAddress() string {
 	return fmt.Sprintf("%s:%d", c.ServerHost, c.ServerPort)
-}
-
-// IsFreeVersion returns true if running free version
-func (c *Config) IsFreeVersion() bool {
-	return c.LicenseKey == ""
-}
-
-// MaxChunksAllowed returns max chunks based on license
-func (c *Config) MaxChunksAllowed() int {
-	if c.IsFreeVersion() {
-		return 5000
-	}
-	return c.MaxChunks
 }

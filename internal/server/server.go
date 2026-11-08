@@ -67,6 +67,9 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 	if cfg.EmbeddingDim > 0 {
 		appSettings.EmbeddingDim = cfg.EmbeddingDim
 	}
+	if cfg.MaxChunks > 0 {
+		appSettings.MaxChunks = cfg.MaxChunks
+	}
 
 	embedder, err := embeddings.NewProvider(embeddings.Config{
 		Type:      embeddings.ProviderType(appSettings.EmbeddingProvider),
@@ -110,7 +113,7 @@ func NewServer(cfg *config.Config, version string) (*Server, error) {
 	}
 
 	idx := indexer.NewIndexer(st, settingsStore, eng, embedder, indexer.Config{
-		MaxChunks:    cfg.MaxChunksAllowed(),
+		MaxChunks:    appSettings.MaxChunks,
 		ChunkSize:    appSettings.ChunkSize,
 		ChunkOverlap: appSettings.ChunkOverlap,
 		Workers:      appSettings.IndexWorkers,
