@@ -420,7 +420,7 @@ function Entries({ selected, onOpen, spaces }: { selected: string | null; onOpen
           </thead>
           <tbody>
             {list.data.entries.map((e) => (
-              <tr key={e.id} className={cx('row align-top', e.id === selected && 'row-active')} onClick={() => onOpen(e.id)}>
+              <tr key={e.id} className={cx('row align-middle', e.id === selected && 'row-active')} onClick={() => onOpen(e.id)}>
                 <td className="td whitespace-normal py-2">
                   <div className="flex min-w-0 items-center gap-2">
                     <KindBadge kind={e.kind} />
