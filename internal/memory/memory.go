@@ -20,6 +20,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/lorag/lorag/internal/core/engine"
@@ -480,7 +481,18 @@ func (s *Service) Save(r SaveRequest) (*SaveResult, error) {
 		}
 	}
 	for _, v := range variants {
-		if v.Space == space && overlap(v.Solution, r.Solution) >= similarSolution {
+		// An entry named by Replaces no longer holds: never confirm it.
+		if v.Space != space || v.ID == r.Replaces {
+			continue
+		}
+		same := overlap(v.Solution, r.Solution) >= similarSolution
+		if r.Kind == KindFact {
+			// A fact turns on one name or number: "his brother is Romain
+			// Maric" and "his brother is Romaric" share 73% of their words
+			// but contradict each other.
+			same = sameFact(v.Solution, r.Solution)
+		}
+		if same {
 			v.Successes++
 			v.Verified, v.Updated = now, now
 			v.Versions = union(v.Versions, r.Versions)
@@ -1517,6 +1529,72 @@ func overlap(a, b string) float64 {
 		}
 	}
 	return float64(inter) / float64(len(wa)+len(wb)-inter)
+}
+
+// sameFact reports whether two facts say the same thing: the words that
+// differ between them, if any, are only filler words (articles,
+// prepositions, auxiliaries), compared without case or accents. A different
+// name, number or meaningful word makes it another fact, which replaces the
+// old one.
+func sameFact(a, b string) bool {
+	wa, wb := factWords(a), factWords(b)
+	for w := range wa {
+		if !wb[w] && !fillerWords[w] {
+			return false
+		}
+	}
+	for w := range wb {
+		if !wa[w] && !fillerWords[w] {
+			return false
+		}
+	}
+	return true
+}
+
+// factWords splits on anything but letters and digits; unlike words, it
+// keeps one-character words ("3 children").
+func factWords(s string) map[string]bool {
+	out := map[string]bool{}
+	for _, w := range strings.FieldsFunc(foldAccents(strings.ToLower(s)), func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}) {
+		out[w] = true
+	}
+	return out
+}
+
+// fillerWords: French and English words that never change what a fact says.
+var fillerWords = map[string]bool{}
+
+func init() {
+	for _, w := range strings.Fields(`a an the of to in on at by for with and or is are was were be been it its this that
+		s l d c j m n t qu le la les un une des de du au aux en et ou est sont etait a ce cet cette ces se sa son ses
+		y il elle ils elles on qui que dont pour par sur avec dans chez tres bien aussi`) {
+		fillerWords[w] = true
+	}
+}
+
+// foldAccents removes the accents of the Latin letters French uses.
+func foldAccents(s string) string {
+	return strings.Map(func(r rune) rune {
+		switch r {
+		case 'à', 'â', 'ä', 'á', 'ã':
+			return 'a'
+		case 'ç':
+			return 'c'
+		case 'é', 'è', 'ê', 'ë':
+			return 'e'
+		case 'î', 'ï', 'í':
+			return 'i'
+		case 'ô', 'ö', 'ó', 'õ':
+			return 'o'
+		case 'ù', 'û', 'ü', 'ú':
+			return 'u'
+		case 'ñ':
+			return 'n'
+		}
+		return r
+	}, s)
 }
 
 func words(s string) map[string]bool {
