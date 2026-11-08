@@ -107,8 +107,8 @@ To calibrate another model:
 - **A new problem** creates variant 1.
 - **The same problem, in the same space, with the same fix** (word overlap of at least 60 %) confirms the entry: one more success, verified today.
 - **The same problem with a different fix** becomes another variant. Variants are ranked by status, then by successes minus twice the failures.
-- **The same fact with a different content** replaces it: the previous versions in the same space become `obsolete` (event `status`, "replaced by …").
-- **`replaces`** names any entry that no longer holds (the port changed, the decision was reversed): it becomes `obsolete` in the same write.
+- **The same fact with a different content** replaces it: the previous versions in the same space become `obsolete` (event `status`, "replaced by …"). For a fact, "the same content" is stricter than the 60 % overlap: the words that differ, if any, must all be filler words (articles, prepositions, auxiliaries, in French or English; case and accents ignored). A different name or number is another fact: "his brother is Romain Maric" then "his brother is Romaric" share 73 % of their words, and the second used to confirm the first (`sameFact`, `TestFactNameChange`).
+- **`replaces`** names any entry that no longer holds (the port changed, the decision was reversed): it becomes `obsolete` in the same write, and it is never the entry confirmed by that save.
 
 ### Feedback and aging
 

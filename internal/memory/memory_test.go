@@ -371,3 +371,67 @@ func TestReplaces(t *testing.T) {
 		t.Fatal("unknown replaces accepted")
 	}
 }
+
+// A fact that differs by one name or number is another fact, even when most
+// words are shared: it replaces the old one instead of confirming it. A
+// rewording with only filler words confirms. Fixes keep the word overlap.
+func TestFactNameChange(t *testing.T) {
+	s, done := open(t, t.TempDir(), 64)
+	defer done()
+	q := "Quel est le nom du petit frère de l'utilisateur"
+	a, _ := s.Save(SaveRequest{Kind: KindFact, Problem: q, Solution: "Le petit frère de l'utilisateur s'appelle Romain Maric."})
+	b, err := s.Save(SaveRequest{Kind: KindFact, Problem: q, Solution: "Le petit frère de l'utilisateur s'appelle Romaric."})
+	if err != nil || b.Action != "replaced" || len(b.Replaced) != 1 || b.Replaced[0] != a.Entry.ID {
+		t.Fatalf("name change: %v %+v", err, b)
+	}
+	// Same fact, reworded with filler words and accents: confirmed.
+	c, _ := s.Save(SaveRequest{Kind: KindFact, Problem: q, Solution: "le petit frere de l'utilisateur, il s'appelle Romaric"})
+	if c.Action != "confirmed" || c.Entry.ID != b.Entry.ID {
+		t.Fatalf("reworded: %+v", c)
+	}
+	// A number changes: another fact.
+	d, _ := s.Save(SaveRequest{Kind: KindFact, Problem: "Quel âge a Romaric ?", Solution: "Romaric a 12 ans."})
+	e, _ := s.Save(SaveRequest{Kind: KindFact, Problem: "Quel âge a Romaric ?", Solution: "Romaric a 13 ans."})
+	if e.Action != "replaced" || e.Replaced[0] != d.Entry.ID {
+		t.Fatalf("number change: %+v", e)
+	}
+	// A fix reworded keeps the word overlap: confirmed, not a variant.
+	f, _ := s.Save(SaveRequest{Kind: KindFix, Error: "EADDRINUSE :3000", Solution: "kill the process on port 3000 then restart the dev server"})
+	g, _ := s.Save(SaveRequest{Kind: KindFix, Error: "EADDRINUSE :3000", Solution: "kill the process on port 3000, then restart dev server"})
+	if g.Action != "confirmed" || g.Entry.ID != f.Entry.ID {
+		t.Fatalf("fix reworded: %+v", g)
+	}
+}
+
+// The entry named by replaces is never the one confirmed: the caller says
+// it no longer holds.
+func TestReplacesNeverConfirms(t *testing.T) {
+	s, done := open(t, t.TempDir(), 64)
+	defer done()
+	a, _ := s.Save(SaveRequest{Problem: "dev server port", Solution: "the dev server listens on port 3000"})
+	b, err := s.Save(SaveRequest{Problem: "dev server port", Solution: "the dev server listens on port 3000 now", Replaces: a.Entry.ID})
+	if err != nil || b.Action == "confirmed" || b.Entry.ID == a.Entry.ID {
+		t.Fatalf("replaces confirmed the retired entry: %v %+v", err, b)
+	}
+	if old, _, _ := s.Get(a.Entry.ID); old.Status != Obsolete {
+		t.Fatalf("retired entry: %s", old.Status)
+	}
+}
+
+func TestSameFact(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		same bool
+	}{
+		{"Le petit frère s'appelle Romain Maric.", "Le petit frère s'appelle Romaric.", false},
+		{"Kenza est ma chérie.", "Kenza, c'est ma chérie", true},
+		{"Karim is the user's partner", "Karim is the partner of the user", true},
+		{"Il a 3 enfants", "Il a 4 enfants", false},
+		{"Il habite à Lyon", "Il habite à Rabat", false},
+		{"Elle aime le thé", "Elle n'aime pas le thé", false},
+	} {
+		if got := sameFact(c.a, c.b); got != c.same {
+			t.Errorf("%q / %q: %v", c.a, c.b, got)
+		}
+	}
+}
