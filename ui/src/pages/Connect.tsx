@@ -20,6 +20,27 @@ const snippets: Snippet[] = [
     code: (url) => JSON.stringify({ mcpServers: { lorag: { type: 'http', url } } }, null, 2),
   },
   {
+    id: 'claude-code',
+    label: 'Claude Code',
+    where: 'Run once in a terminal; --scope user makes Lorag available in every project',
+    code: (url) => `claude mcp add --transport http --scope user lorag ${url}`,
+  },
+  {
+    id: 'claude-code-hook',
+    label: 'Claude Code hook',
+    where: '~/.claude/settings.json: when a Bash command fails, a known fix is recalled and added to the context (needs loragctl on the PATH)',
+    code: () =>
+      JSON.stringify(
+        {
+          hooks: {
+            PostToolUseFailure: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'loragctl hook claude-code', timeout: 10 }] }],
+          },
+        },
+        null,
+        2,
+      ),
+  },
+  {
     id: 'cursor',
     label: 'Cursor',
     where: '~/.cursor/mcp.json, or .cursor/mcp.json in a project',

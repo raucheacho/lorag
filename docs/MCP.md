@@ -31,6 +31,40 @@ Clients that support HTTP servers take the URL directly:
 
 Clients limited to stdio servers can go through a bridge such as `npx mcp-remote http://localhost:8080/mcp`.
 
+### Claude Code
+
+The [lorag-claude-code](https://github.com/raucheacho/lorag-claude-code) plugin sets up the server, the hook below and a `/lorag:memory` skill in one install:
+
+```
+/plugin marketplace add raucheacho/lorag-claude-code
+/plugin install lorag@lorag
+```
+
+By hand, add the server:
+
+```sh
+claude mcp add --transport http --scope user lorag http://localhost:8080/mcp
+```
+
+`--scope user` makes Lorag available in every project; leave it out to add it to the current project only.
+
+The agent decides on its own when to call `memory_recall`. To recall on every failed command, add a `PostToolUseFailure` hook to `~/.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [{ "type": "command", "command": "loragctl hook claude-code", "timeout": 10 }]
+      }
+    ]
+  }
+}
+```
+
+`loragctl hook claude-code` reads the event on stdin, sends the error to `/api/v1/memory/recall` with the working directory's name as `project`, and returns a match as `additionalContext`, so Claude reads the fix next to the failed command. It prints nothing and exits 0 when Lorag is not running, when the command failed without a message (`grep` finding nothing), when it was interrupted, or when nothing matches. A failure that matches nothing still counts as a miss in the memory statistics. `--project` overrides the project name.
+
 ## Tools
 
 The `initialize` answer carries instructions for the agent:
