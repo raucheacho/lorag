@@ -56,6 +56,7 @@ from the command line.`,
 	rootCmd.AddCommand(watchCmd())
 	rootCmd.AddCommand(docCmd())
 	rootCmd.AddCommand(memCmd())
+	rootCmd.AddCommand(hookCmd())
 	rootCmd.AddCommand(versionCmd())
 
 	if err := rootCmd.Execute(); err != nil {

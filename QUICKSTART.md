@@ -51,7 +51,7 @@ Dans **Playground**, tapez une question puis `⌘↵`. Chaque résultat indique 
 
 ## 6. Connecter un agent
 
-Dans **Connect**, choisissez votre client (client HTTP générique, Cursor, VS Code, passerelle stdio), copiez la configuration et cliquez sur **Test**. L'URL est `http://localhost:8080/mcp`.
+Dans **Connect**, choisissez votre client (client HTTP générique, Claude Code, Cursor, VS Code, passerelle stdio), copiez la configuration et cliquez sur **Test**. L'URL est `http://localhost:8080/mcp`.
 
 L'agent reçoit sept outils, dont :
 - `memory_recall` : chercher dans ce qui est déjà connu avant de chercher ailleurs ;

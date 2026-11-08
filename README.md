@@ -5,7 +5,7 @@
 - **Mémoire des agents.** Correctifs et réponses déjà trouvés, faits sur vous et vos proches (une personne, une préférence, un engagement), avec leur source et leur historique, rappelés en 20 à 60 tokens ([docs/MEMORY.md](docs/MEMORY.md)). Pour le code comme pour un assistant vocal comme Benom.
 - **Recherche hybride.** Le sens (embeddings) et les mots exacts (BM25) fusionnés. Les messages d'erreur sont cherchés mot pour mot.
 - **Positions exactes.** Chaque résultat renvoie à la page d'un PDF, aux lignes d'un fichier ou à la minute d'un audio ou d'une vidéo ([docs/MEDIA_INDEXING.md](docs/MEDIA_INDEXING.md)).
-- **MCP.** Cursor, VS Code, Codex et tout client MCP se branchent sur la même mémoire ([docs/MCP.md](docs/MCP.md)).
+- **MCP.** Claude Code, Cursor, VS Code, Codex et tout client MCP se branchent sur la même mémoire ([docs/MCP.md](docs/MCP.md)).
 - **Studio.** Une interface web pour voir ce que les agents demandent, tester une requête et comprendre pourquoi un résultat sort, et corriger la mémoire.
 - **Local.** Embeddings par Ollama, transcription par whisper.cpp, OCR par tesseract. Aucune donnée ne sort sans votre action.
 - **Fiable.** Le moteur de recherche, [VectixDB](https://github.com/raucheacho/vectixdb), est écrit en Zig, résiste aux plantages et est lié dans le démon : un seul binaire.
@@ -50,7 +50,7 @@ Avec Homebrew, les outils pour les PDF, l'audio, la vidéo et les images sont in
 
 1. Ouvrez http://localhost:8080. La page **Overview** vérifie le modèle d'embedding et propose d'indexer un premier dossier.
 2. **Ingestion** : indiquez un dossier ou glissez des fichiers. Cochez *Keep watching* pour réindexer les fichiers modifiés.
-3. **Connect** : copiez la configuration MCP de votre client (Cursor, VS Code, client HTTP) et testez la connexion.
+3. **Connect** : copiez la configuration MCP de votre client (Claude Code, Cursor, VS Code, client HTTP) et testez la connexion.
 4. Travaillez avec votre agent. **Agent logs** montre ses recherches et ses rappels, **Memory** ce qu'il a appris.
 
 Guide pas à pas : [QUICKSTART.md](QUICKSTART.md). Guide complet : [USER_GUIDE.md](USER_GUIDE.md).
