@@ -24,6 +24,7 @@
   --accent-ink: #042f2e;
   --vector: #a78bfa;
   --keyword: #f5b13d;
+  --bad: #f87171;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
 }
 * { box-sizing: border-box; }
@@ -35,8 +36,9 @@ body {
 }
 a { color: inherit; text-decoration: none; }
 img, svg { display: block; }
-code { font-family: var(--mono); }
-.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+code, pre { font-family: var(--mono); }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+.hero > *, .loop > *, .integ > *, .setup > *, .pipe > *, .band .wrap > * { min-width: 0; }
 
 [data-lang] { display: none; }
 html[lang="fr"] [data-lang="fr"], html[lang="en"] [data-lang="en"] { display: revert; }
@@ -46,6 +48,8 @@ nav { position: sticky; top: 0; z-index: 10; background: rgba(9, 9, 10, 0.72); b
 nav .wrap { display: flex; align-items: center; gap: 28px; height: 60px; }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 15px; }
 .brand svg { width: 24px; height: 24px; }
+.brand .ver { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
+.brand .ver:empty { display: none; }
 .links { display: flex; gap: 22px; font-size: 14px; color: var(--muted); }
 .links a:hover { color: var(--text); }
 .spacer { flex: 1; }
@@ -58,205 +62,199 @@ nav .wrap { display: flex; align-items: center; gap: 28px; height: 60px; }
 }
 .btn:hover { background: #ffffff; }
 .btn svg { width: 16px; height: 16px; }
-.btn.lg { font-size: 16px; padding: 13px 22px; border-radius: 12px; }
 .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line-strong); }
 .btn.ghost:hover { background: var(--surface-2); border-color: rgba(255, 255, 255, 0.24); }
-.btn:focus-visible, .lang button:focus-visible, .links a:focus-visible, .brand:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.ctas { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+:is(.btn, .lang button, .links a, .brand, .tabs button, .copy):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-/* Accroche */
-.hero { text-align: center; padding: 104px 0 0; }
-.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin: 0 0 18px; }
-h1 { font-size: clamp(44px, 7.4vw, 84px); line-height: 1.02; letter-spacing: -0.035em; font-weight: 700; margin: 0; }
+/* Accroche en deux colonnes */
+.hero { display: grid; grid-template-columns: 1.08fr 1fr; gap: 52px; align-items: center; padding-top: 88px; padding-bottom: 80px; }
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); margin: 0 0 22px; }
+.eyebrow::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+h1 { font-size: clamp(38px, 4.6vw, 54px); line-height: 1.04; letter-spacing: -0.035em; font-weight: 700; margin: 0; }
 h1 .dim { color: var(--dim); }
-.lede { color: var(--muted); font-size: clamp(17px, 2vw, 19px); max-width: 580px; margin: 24px auto 34px; }
-.hero .meta { font-family: var(--mono); font-size: 12px; color: var(--dim); margin-top: 16px; }
+.lede { color: var(--muted); font-size: 18px; max-width: 500px; margin: 22px 0 30px; }
 
-/* Maquette : une session d'agent et le Studio */
-.stage { position: relative; margin: 72px auto 0; max-width: 980px; }
-.stage::before {
-  content: ""; position: absolute; left: 10%; right: 10%; top: 18%; bottom: -8%; z-index: -1;
-  background: radial-gradient(closest-side, rgba(45, 212, 191, 0.18), transparent); filter: blur(30px);
-}
-.desktop {
-  position: relative; height: 540px; border-radius: 18px; border: 1px solid var(--line-strong); overflow: hidden;
-  background: #0c0c0d radial-gradient(120% 90% at 80% 100%, #0d2422 0%, #0c0c0d 60%);
-  box-shadow: 0 40px 120px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  text-align: left;
-}
-.titlebar {
-  display: flex; align-items: center; gap: 14px; height: 36px; padding: 0 14px;
-  background: rgba(255, 255, 255, 0.03); border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--dim);
-}
+.install { max-width: 500px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.tabs { display: flex; gap: 2px; padding: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tabs button { background: none; border: 0; border-radius: 7px; color: var(--dim); font: 500 12.5px/1 var(--mono); padding: 7px 10px; cursor: pointer; white-space: nowrap; }
+.tabs button:hover { color: var(--text); }
+.tabs button[aria-selected="true"] { color: var(--text); background: var(--surface-2); }
+.pane { display: none; }
+.pane.on { display: block; }
+.line { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-family: var(--mono); font-size: 13px; }
+.line code { flex: 1; overflow-x: auto; white-space: nowrap; color: #e4e4e7; }
+.line code::before { content: "$ "; color: var(--dim); }
+.line + .line { border-top: 1px dashed var(--line); }
+.copy { flex: none; background: none; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); padding: 5px; cursor: pointer; }
+.copy:hover { color: var(--text); border-color: var(--line-strong); }
+.copy svg { width: 14px; height: 14px; }
+.copy.done { color: var(--accent); border-color: rgba(45, 212, 191, 0.4); }
+.after { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 18px; font-size: 14px; color: var(--muted); }
+.after a { display: inline-flex; align-items: center; gap: 7px; }
+.after a:hover { color: var(--text); }
+.after svg { width: 15px; height: 15px; }
+
+/* Terminal */
+.term { border-radius: 14px; border: 1px solid var(--line-strong); background: #0c0c0d; box-shadow: 0 40px 100px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05); overflow: hidden; position: relative; }
+.term::after { content: ""; position: absolute; inset: auto -20% -40% 30%; height: 70%; background: radial-gradient(closest-side, rgba(45, 212, 191, 0.13), transparent); pointer-events: none; }
+.tbar { display: flex; align-items: center; gap: 14px; height: 36px; padding: 0 14px; background: rgba(255, 255, 255, 0.03); border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--dim); }
 .dots { display: flex; gap: 7px; }
 .dots i { width: 11px; height: 11px; border-radius: 50%; background: #2a2a2e; }
-.titlebar .path { color: var(--muted); }
-.titlebar .mcp { margin-left: auto; display: flex; align-items: center; gap: 7px; }
-.titlebar .mcp::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.tbar .mcp { margin-left: auto; display: flex; align-items: center; gap: 7px; }
+.tbar .mcp::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.term pre { margin: 0; padding: 18px 20px 22px; font-size: 13px; line-height: 1.75; color: #d4d4d8; overflow-x: auto; }
+.p { color: var(--accent); }
+.c { color: var(--dim); }
+.e { color: var(--bad); }
+.h { color: #fff; }
+.k { color: var(--keyword); }
+.v { color: var(--vector); }
 
-.panel {
-  position: absolute; top: 58px; right: 28px; width: 300px; border-radius: 12px; font-size: 13px;
-  background: rgba(24, 24, 27, 0.94); border: 1px solid var(--line-strong); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); overflow: hidden;
-}
-.panel .ph { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-weight: 600; font-size: 12.5px; }
-.panel .ph svg { width: 15px; height: 15px; }
-.panel .ph span:last-child { margin-left: auto; font-family: var(--mono); font-weight: 400; font-size: 11px; color: var(--dim); }
-.log { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 10px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); }
-.log:last-child { border-bottom: 0; }
-.log .k { font-family: var(--mono); font-size: 10.5px; padding: 2px 6px; border-radius: 5px; border: 1px solid var(--line); color: var(--muted); }
-.log .k.hit { color: var(--accent); border-color: rgba(45, 212, 191, 0.35); background: rgba(45, 212, 191, 0.08); }
-.log .q { color: #e4e4e7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.log .n { font-family: var(--mono); font-size: 11px; color: var(--dim); }
-.log.sel { background: rgba(45, 212, 191, 0.06); }
-
-.chat { position: absolute; left: 44px; bottom: 40px; width: min(500px, calc(100% - 88px)); display: flex; flex-direction: column; gap: 12px; }
-.msg { max-width: 90%; padding: 11px 15px; border-radius: 16px; font-size: 14.5px; line-height: 1.45; }
-.msg.you { align-self: flex-end; background: var(--surface-2); border: 1px solid var(--line); border-bottom-right-radius: 5px; color: #e9e9ee; }
-.msg.agent { align-self: flex-start; background: rgba(45, 212, 191, 0.09); border: 1px solid rgba(45, 212, 191, 0.24); border-bottom-left-radius: 5px; }
-.msg code { font-size: 13px; color: var(--accent); }
-.who { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-bottom: 3px; }
-.call {
-  align-self: flex-start; width: 92%; border-radius: 12px; border: 1px solid var(--line-strong); background: rgba(17, 17, 19, 0.9);
-  font-family: var(--mono); font-size: 12px; overflow: hidden;
-}
-.call .ch { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); color: var(--muted); }
-.call .ch b { color: var(--text); font-weight: 500; }
-.call .ch .ok { margin-left: auto; color: var(--accent); }
-.call .cb { padding: 9px 12px; color: #d4d4d8; line-height: 1.5; }
-.call .cb .src { color: var(--dim); }
-.pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .pulse { animation: none; } }
+/* Barre de chiffres */
+.stats { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.stats .wrap { display: grid; grid-template-columns: repeat(4, 1fr); }
+.stat { padding: 26px 24px; }
+.stat:first-child { padding-left: 0; }
+.stat + .stat { border-left: 1px solid var(--line); }
+.stat b { display: block; font-size: 28px; font-weight: 600; letter-spacing: -0.03em; }
+.stat span { font-size: 13.5px; color: var(--muted); }
 
 /* Sections */
-section.wrap { margin-top: 140px; }
-.head { max-width: 640px; margin-bottom: 44px; }
-h2 { font-size: clamp(26px, 3.4vw, 36px); line-height: 1.15; letter-spacing: -0.025em; font-weight: 600; margin: 0; }
-h2 .dim { color: var(--dim); display: block; }
+section.wrap { padding-top: 120px; }
+.kicker { font-family: var(--mono); font-size: 12px; color: var(--accent); margin: 0 0 12px; }
+h2 { font-size: clamp(26px, 3.2vw, 36px); line-height: 1.15; letter-spacing: -0.025em; font-weight: 600; margin: 0; }
+h2 .dim { color: var(--dim); }
+.intro { color: var(--muted); font-size: 16px; max-width: 620px; margin: 14px 0 44px; }
 
-/* Grille de fonctions */
-.bento { display: grid; grid-template-columns: repeat(6, 1fr); gap: 14px; }
-.card {
-  position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 26px; overflow: hidden;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04); display: flex; flex-direction: column;
+/* Pipeline */
+.pipe { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 16px; background: var(--surface); overflow: hidden; }
+.stage { position: relative; padding: 24px 22px 26px; }
+.stage + .stage { border-left: 1px solid var(--line); }
+.stage + .stage::before {
+  content: ""; position: absolute; left: -7px; top: 30px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--bg); border: 1px solid var(--accent); box-shadow: 0 0 10px rgba(45, 212, 191, 0.5);
 }
-.span-2 { grid-column: span 2; } .span-4 { grid-column: span 4; } .span-6 { grid-column: span 6; }
-.card h3 { font-size: 16px; font-weight: 600; margin: 0 0 6px; display: flex; align-items: center; gap: 9px; }
-.card h3 svg { width: 17px; height: 17px; color: var(--muted); flex: none; }
-.card p { margin: 0; color: var(--muted); font-size: 14.5px; }
-.card .visual { flex: 1; min-height: 150px; display: flex; align-items: center; justify-content: center; margin-bottom: 26px; }
-
-/* Visuel : local */
-.flow { display: flex; align-items: center; gap: 14px; width: 100%; max-width: 580px; }
-.box { border: 1px solid var(--line-strong); border-radius: 14px; padding: 14px 16px; background: var(--surface-2); }
-.box .label { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.06em; }
-.machine { flex: 1.4; }
+.stage .n { font-family: var(--mono); font-size: 11.5px; color: var(--dim); margin-bottom: 14px; }
+.stage h3 { font-size: 16px; font-weight: 600; margin: 0 0 6px; }
+.stage p { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { font-size: 12.5px; padding: 4px 9px; border-radius: 7px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); color: #d6d6de; }
-.chip.on { border-color: rgba(45, 212, 191, 0.4); color: #fff; background: rgba(45, 212, 191, 0.1); }
-.arrow { flex: 0.8; text-align: center; font-family: var(--mono); font-size: 11px; color: var(--muted); }
-.arrow .line { height: 1px; background: var(--accent); opacity: 0.7; margin: 8px 0; position: relative; }
-.arrow .line::after { content: ""; position: absolute; right: -1px; top: -3px; border: 3.5px solid transparent; border-left: 6px solid var(--accent); }
-.agents { flex: 1; }
+.chip { font-family: var(--mono); font-size: 11.5px; padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); color: #d6d6de; }
+.chip.on { border-color: rgba(45, 212, 191, 0.4); color: #fff; background: rgba(45, 212, 191, 0.08); }
+.under { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 40px; margin-top: 36px; }
+.under > div { border-top: 1px solid var(--line); padding-top: 16px; }
+.under h4 { margin: 0 0 4px; font-size: 14.5px; font-weight: 600; }
+.under p { margin: 0; color: var(--muted); font-size: 14px; }
+.fuse { display: flex; flex-direction: column; gap: 7px; margin-top: 12px; font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+.fuse .r { display: grid; grid-template-columns: 62px 1fr 34px; gap: 8px; align-items: center; }
+.fuse .bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.fuse .bar i { display: block; height: 100%; border-radius: 3px; }
+.fuse b { font-weight: 500; text-align: right; color: var(--text); }
 
-/* Visuel : tokens */
-.big { text-align: center; }
-.big .num { font-size: 56px; font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
-.big .num small { font-size: 22px; color: var(--dim); font-weight: 500; letter-spacing: -0.02em; margin-left: 4px; }
-.big .cap { color: var(--muted); font-size: 14px; margin-top: 8px; }
-.big .sub { font-family: var(--mono); font-size: 11.5px; color: var(--dim); margin-top: 14px; }
+/* Boucle mémoire */
+.loop { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 56px; align-items: start; }
+.loop .side { position: sticky; top: 100px; }
+.steps { list-style: none; margin: 0; padding: 0; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 34px 1fr; gap: 14px; padding: 18px 0; border-top: 1px solid var(--line); }
+.steps li::before { content: "0" counter(s); font-family: var(--mono); font-size: 12px; color: var(--accent); padding-top: 3px; }
+.steps h3 { margin: 0 0 4px; font-size: 16px; font-weight: 600; }
+.steps p { margin: 0; color: var(--muted); font-size: 14.5px; }
+.steps code { font-size: 12.5px; color: var(--text); }
+.calls { display: flex; flex-direction: column; gap: 14px; }
+.call { border: 1px solid var(--line-strong); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.call .ch { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-bottom: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.call .ch b { color: var(--text); font-weight: 500; }
+.call .ch .tag { margin-left: auto; color: var(--accent); }
+.call pre { margin: 0; padding: 12px 14px; font-size: 12.5px; line-height: 1.65; color: #d4d4d8; overflow-x: auto; }
+.call pre + pre { border-top: 1px dashed var(--line); background: rgba(45, 212, 191, 0.03); }
 
-/* Visuel : recherche hybride */
-.score { width: 100%; display: flex; flex-direction: column; gap: 12px; font-family: var(--mono); font-size: 12px; }
-.score .r { display: grid; grid-template-columns: 76px 1fr 38px; gap: 10px; align-items: center; color: var(--muted); }
-.score .bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
-.score .bar i { display: block; height: 100%; border-radius: 4px; }
-.score .v i { background: var(--vector); width: 64%; }
-.score .w i { background: var(--keyword); width: 88%; }
-.score .f i { background: var(--accent); width: 93%; }
-.score .f { color: var(--text); }
-.score b { font-weight: 500; text-align: right; }
+/* Fonctions en liste */
+.feats { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); }
+.feat { padding: 28px 28px 30px 0; border-bottom: 1px solid var(--line); }
+.feat:not(:nth-child(3n + 1)) { padding-left: 28px; border-left: 1px solid var(--line); }
+.feat svg { width: 20px; height: 20px; color: var(--accent); margin-bottom: 14px; }
+.feat h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+.feat p { margin: 0; color: var(--muted); font-size: 14.5px; }
 
-/* Visuel : positions */
-.list { width: 100%; display: flex; flex-direction: column; gap: 8px; }
-.row { display: flex; justify-content: space-between; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13.5px; }
-.row .t { font-family: var(--mono); font-size: 12px; color: var(--accent); white-space: nowrap; }
-.row.faded { opacity: 0.45; }
-
-/* Visuel : Studio */
-.calc { width: 100%; font-family: var(--mono); display: flex; flex-direction: column; gap: 10px; }
-.calc div { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; color: var(--muted); border-bottom: 1px dashed var(--line); padding-bottom: 9px; }
-.calc div:last-child { border-bottom: 0; }
-.calc b { color: var(--text); font-weight: 500; }
-
-/* Visuel : formats */
-.brains { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; }
-.brains > span { font-size: 14px; padding: 9px 15px; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--surface-2); color: #dcdce4; }
-.brains > span.on { border-color: rgba(45, 212, 191, 0.5); background: rgba(45, 212, 191, 0.1); color: #fff; }
-.brains small { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-left: 6px; }
+/* Intégrations */
+.integ { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+.box { border: 1px solid var(--line-strong); border-radius: 14px; background: var(--surface); overflow: hidden; }
+.box .where { padding: 12px 16px 0; font-size: 13px; color: var(--dim); }
+.box pre { margin: 0; padding: 12px 16px 16px; font-size: 12.5px; line-height: 1.65; color: #e4e4e7; overflow-x: auto; }
+.tools { width: 100%; border-collapse: collapse; font-size: 14px; }
+.tools th { text-align: left; font: 500 11.5px var(--mono); color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 0 10px; border-bottom: 1px solid var(--line); }
+.tools td { padding: 11px 0; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--muted); }
+.tools td:first-child { width: 168px; font-family: var(--mono); font-size: 13px; color: var(--text); }
+.ro, .wr { font-family: var(--mono); font-size: 10.5px; padding: 1px 6px; border-radius: 5px; margin-left: 6px; }
+.ro { color: var(--accent); border: 1px solid rgba(45, 212, 191, 0.35); }
+.wr { color: var(--keyword); border: 1px solid rgba(245, 177, 61, 0.35); }
 
 /* Installation */
-.steps { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); }
-.step { padding: 28px 28px 0 0; min-width: 0; }
-.step + .step { padding-left: 28px; border-left: 1px solid var(--line); }
-.step .n { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-bottom: 14px; }
-.step h3 { margin: 0 0 6px; font-size: 17px; font-weight: 600; }
-.step p { margin: 0; color: var(--muted); font-size: 14.5px; }
-.cmd {
-  display: block; margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line);
-  font-size: 12.5px; color: #e4e4e7; white-space: nowrap; overflow-x: auto;
-}
-.cmd::before { content: "$ "; color: var(--dim); }
+.setup { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 56px; align-items: start; }
+.tl { list-style: none; margin: 0; padding: 0; position: relative; }
+.tl::before { content: ""; position: absolute; left: 13px; top: 8px; bottom: 8px; width: 1px; background: var(--line-strong); }
+.tl li { position: relative; padding: 0 0 30px 46px; }
+.tl li:last-child { padding-bottom: 0; }
+.tl .dot { position: absolute; left: 0; top: 0; width: 27px; height: 27px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--line-strong); font: 500 11.5px/25px var(--mono); text-align: center; color: var(--accent); }
+.tl h3 { margin: 2px 0 4px; font-size: 16px; font-weight: 600; }
+.tl p { margin: 0 0 10px; color: var(--muted); font-size: 14.5px; }
+.cmd { display: flex; align-items: center; gap: 10px; padding: 9px 9px 9px 12px; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: 12.5px; }
+.cmd code { flex: 1; color: #e4e4e7; white-space: nowrap; overflow-x: auto; }
+.cmd code::before { content: "$ "; color: var(--dim); }
 .cmd + .cmd { margin-top: 8px; }
-.step .alt { margin-top: 12px; font-size: 13px; color: var(--dim); }
-.step .alt code { color: var(--muted); font-size: 12px; }
-
-/* Configuration */
-.spec { display: grid; grid-template-columns: 1fr 1fr; gap: 0 64px; margin: 0; }
-.spec div { display: grid; grid-template-columns: 150px 1fr; gap: 16px; padding: 18px 0; border-bottom: 1px solid var(--line); }
-.spec dt { font-family: var(--mono); font-size: 12.5px; color: var(--dim); padding-top: 2px; }
-.spec dd { margin: 0; font-size: 15px; }
-.spec .note { display: block; color: var(--muted); font-size: 13.5px; margin-top: 2px; }
+.spec { margin: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 6px 20px; }
+.spec div { display: grid; grid-template-columns: 110px 1fr; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.spec div:last-child { border-bottom: 0; }
+.spec dt { font-family: var(--mono); font-size: 12px; color: var(--dim); padding-top: 2px; }
+.spec dd { margin: 0; font-size: 14.5px; }
+.spec .note { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
 .spec a { text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .spec a:hover { text-decoration-color: var(--accent); }
 
-/* Appel final */
-.final { text-align: center; padding: 160px 24px 150px; }
-.final .logo { width: 96px; height: 96px; margin: 0 auto 28px; filter: drop-shadow(0 14px 36px rgba(45, 212, 191, 0.35)); }
-.final h2 { margin-bottom: 30px; }
+/* Bandeau final */
+.band { margin-top: 130px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: radial-gradient(60% 140% at 85% 50%, rgba(45, 212, 191, 0.09), transparent 70%); }
+.band .wrap { display: flex; align-items: center; justify-content: space-between; gap: 32px; flex-wrap: wrap; padding-top: 56px; padding-bottom: 56px; }
+.band .logo { width: 44px; height: 44px; margin-bottom: 16px; }
+.band .install { flex: 0 1 460px; }
 
-footer { border-top: 1px solid var(--line); }
 footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding-top: 28px; padding-bottom: 40px; font-size: 13.5px; color: var(--dim); }
 footer a:hover { color: var(--text); }
 footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
 
-@media (max-width: 900px) {
+@media (max-width: 960px) {
   .links { display: none; }
-  .bento { grid-template-columns: 1fr 1fr; }
-  .span-2 { grid-column: span 1; } .span-4, .span-6 { grid-column: span 2; }
-  .spec { grid-template-columns: 1fr; }
-  .panel { right: 18px; width: 270px; }
+  .hero { grid-template-columns: 1fr; gap: 44px; padding-top: 64px; }
+  .stats .wrap { grid-template-columns: 1fr 1fr; }
+  .stat:nth-child(3) { border-left: 0; padding-left: 0; }
+  .stat:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .pipe { grid-template-columns: 1fr 1fr; }
+  .stage:nth-child(3) { border-left: 0; }
+  .stage:nth-child(n + 3) { border-top: 1px solid var(--line); }
+  .stage:nth-child(3)::before { display: none; }
+  .under, .feats { grid-template-columns: 1fr 1fr; }
+  .feat, .feat:not(:nth-child(3n + 1)) { padding: 24px 24px 26px 0; border-left: 0; }
+  .feat:nth-child(2n) { padding-left: 24px; border-left: 1px solid var(--line); }
+  .loop, .integ, .setup { grid-template-columns: 1fr; gap: 36px; }
+  .loop .side { position: static; }
 }
 @media (max-width: 640px) {
   .wrap { padding: 0 16px; }
-  .hero { padding-top: 64px; }
-  section.wrap { margin-top: 96px; }
   nav .wrap { gap: 14px; }
   nav .btn > span { display: none; }
-  .bento { grid-template-columns: 1fr; }
-  .span-2, .span-4, .span-6 { grid-column: span 1; }
-  .desktop { height: 470px; }
-  .panel { display: none; }
-  .titlebar .path { display: none; }
-  .chat { left: 14px; right: 14px; width: auto; bottom: 20px; }
-  .msg { font-size: 13.5px; }
-  .call { width: 100%; }
-  .flow { flex-direction: column; align-items: stretch; }
-  .arrow .line { display: none; }
-  .steps { grid-template-columns: 1fr; }
-  .step, .step + .step { padding: 24px 0; border-left: 0; border-bottom: 1px solid var(--line); }
+  section.wrap { padding-top: 88px; }
+  .term pre { font-size: 12px; padding: 14px; }
+  .stat { padding: 20px 16px; }
+  .stat b { font-size: 23px; }
+  .pipe, .under, .feats { grid-template-columns: 1fr; }
+  .stage + .stage { border-left: 0; border-top: 1px solid var(--line); }
+  .stage + .stage::before { display: none; }
+  .under { gap: 20px; }
+  .feat, .feat:nth-child(2n), .feat:not(:nth-child(3n + 1)) { padding: 22px 0; border-left: 0; }
+  .tools td:first-child { width: auto; }
+  .tools td { display: block; border-bottom: 0; padding: 0; }
+  .tools tr { display: block; padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .tools thead { display: none; }
   .spec div { grid-template-columns: 1fr; gap: 4px; }
-  .final { padding: 120px 16px 110px; }
+  .band { margin-top: 96px; }
 }
 </style>
 </head>
@@ -264,16 +262,19 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="logo" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5" fill="#2dd4bf"/><path d="M8 6.5v11h8" stroke="#042f2e" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="gh" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.39-5.26 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></symbol>
+  <symbol id="cp" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></g></symbol>
+  <symbol id="book" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6.5A2.5 2.5 0 0 0 4 21.5Z"/><path d="M8 7h8"/></g></symbol>
 </svg>
 
 <nav>
   <div class="wrap">
-    <a class="brand" href="#"><svg aria-hidden="true"><use href="#logo"/></svg>Lorag</a>
+    <a class="brand" href="#"><svg aria-hidden="true"><use href="#logo"/></svg>Lorag<span class="ver version"></span></a>
     <div class="links">
-      <a href="#fonctions"><span data-lang="fr">Fonctions</span><span data-lang="en">Features</span></a>
+      <a href="#pipeline"><span data-lang="fr">Fonctionnement</span><span data-lang="en">How it works</span></a>
+      <a href="#memoire"><span data-lang="fr">Mémoire</span><span data-lang="en">Memory</span></a>
+      <a href="#integrations"><span data-lang="fr">Intégrations</span><span data-lang="en">Integrations</span></a>
       <a href="#installer"><span data-lang="fr">Installer</span><span data-lang="en">Install</span></a>
-      <a href="#configuration"><span data-lang="fr">Configuration</span><span data-lang="en">Requirements</span></a>
-      <a href="https://github.com/raucheacho/lorag/blob/main/USER_GUIDE.md"><span data-lang="fr">Guide</span><span data-lang="en">Guide</span></a>
+      <a href="https://github.com/raucheacho/lorag/blob/main/USER_GUIDE.md">Guide</a>
     </div>
     <div class="spacer"></div>
     <div class="lang" role="group" aria-label="Langue · Language">
@@ -289,219 +290,302 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
 
 <main>
   <div class="hero wrap">
-    <p class="eyebrow"><span data-lang="fr">Mémoire locale pour agents IA</span><span data-lang="en">Local memory for AI agents</span></p>
-    <h1>
-      <span data-lang="fr">Tes agents oublient.<br><span class="dim">Lorag se souvient.</span></span>
-      <span data-lang="en">Your agents forget.<br><span class="dim">Lorag remembers.</span></span>
-    </h1>
-    <p class="lede">
-      <span data-lang="fr">Lorag indexe tes fichiers et garde ce que tes agents ont déjà trouvé ou appris. Ils le retrouvent en quelques tokens au lieu de chercher à nouveau. Tout reste sur ta machine.</span>
-      <span data-lang="en">Lorag indexes your files and keeps what your agents already found or learned. They get it back in a few tokens instead of searching again. Everything stays on your machine.</span>
-    </p>
-    <div class="ctas">
-      <a class="btn lg" href="#installer">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 5 4-5 4M13 17h6"/></svg>
-        <span data-lang="fr">Installer</span><span data-lang="en">Install</span>
-      </a>
-      <a class="btn lg ghost" href="https://github.com/raucheacho/lorag">
-        <svg aria-hidden="true"><use href="#gh"/></svg>
-        <span data-lang="fr">Voir le code</span><span data-lang="en">View source</span>
-      </a>
-    </div>
-    <p class="meta"><span class="version"></span>macOS · Linux · <span data-lang="fr">libre (MIT)</span><span data-lang="en">open source (MIT)</span></p>
-
-    <div class="stage" aria-hidden="true">
-      <div class="desktop">
-        <div class="titlebar">
-          <span class="dots"><i></i><i></i><i></i></span>
-          <span class="path">~/code/mon-app</span>
-          <span class="mcp">lorag · localhost:8080/mcp</span>
+    <div>
+      <p class="eyebrow"><span data-lang="fr">Mémoire locale pour agents IA</span><span data-lang="en">Local memory for AI agents</span></p>
+      <h1>
+        <span data-lang="fr">Tes agents oublient.<br><span class="dim">Lorag se souvient.</span></span>
+        <span data-lang="en">Your agents forget.<br><span class="dim">Lorag remembers.</span></span>
+      </h1>
+      <p class="lede">
+        <span data-lang="fr">Un démon local qui indexe tes fichiers et garde ce que tes agents ont déjà trouvé ou appris. Ils le retrouvent en quelques tokens, par MCP, au lieu de chercher à nouveau.</span>
+        <span data-lang="en">A local daemon that indexes your files and keeps what your agents already found or learned. They get it back in a few tokens, over MCP, instead of searching again.</span>
+      </p>
+      <div class="install" data-tabs>
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" aria-selected="true" data-tab="brew">Homebrew</button>
+          <button type="button" role="tab" aria-selected="false" data-tab="linux">Linux</button>
+          <button type="button" role="tab" aria-selected="false" data-tab="src"><span data-lang="fr">Sources</span><span data-lang="en">Source</span></button>
         </div>
-
-        <div class="panel">
-          <div class="ph"><svg aria-hidden="true"><use href="#logo"/></svg><span>Studio · Agent logs</span><span data-lang="fr">à l'instant</span><span data-lang="en">just now</span></div>
-          <div class="log sel"><span class="k hit">recall</span><span class="q">ERR_MODULE_NOT_FOUND metro</span><span class="n">38 tok</span></div>
-          <div class="log"><span class="k">search</span><span class="q"><span data-lang="fr">contrat fournisseur pénalités</span><span data-lang="en">supplier contract penalties</span></span><span class="n">5</span></div>
-          <div class="log"><span class="k">save</span><span class="q"><span data-lang="fr">Port de l'API de staging</span><span data-lang="en">Staging API port</span></span><span class="n">fact</span></div>
-          <div class="log"><span class="k hit">recall</span><span class="q"><span data-lang="fr">préférences de Awa</span><span data-lang="en">Awa's preferences</span></span><span class="n">24 tok</span></div>
+        <div class="pane on" data-pane="brew">
+          <div class="line"><code>brew install raucheacho/tap/lorag</code><button class="copy" type="button" aria-label="Copy"><svg><use href="#cp"/></svg></button></div>
+          <div class="line"><code>brew services start lorag</code><button class="copy" type="button" aria-label="Copy"><svg><use href="#cp"/></svg></button></div>
         </div>
-
-        <div class="chat">
-          <div class="msg you"><div class="who"><span data-lang="fr">toi</span><span data-lang="en">you</span></div>
-            <span data-lang="fr">Le build plante encore avec ERR_MODULE_NOT_FOUND.</span>
-            <span data-lang="en">The build fails again with ERR_MODULE_NOT_FOUND.</span></div>
-          <div class="call">
-            <div class="ch"><span class="pulse"></span><b>memory_recall</b><span class="ok">hit · 38 tokens</span></div>
-            <div class="cb">
-              <span data-lang="fr">fix : vider le cache de Metro, <code>npx expo start -c</code></span><span data-lang="en">fix: clear the Metro cache, <code>npx expo start -c</code></span><br>
-              <span class="src"><span data-lang="fr">source : session du 12 oct. · aidé 3 fois</span><span data-lang="en">source: Oct 12 session · helped 3 times</span></span>
-            </div>
-          </div>
-          <div class="msg agent"><div class="who">agent</div>
-            <span data-lang="fr">Déjà vu : le cache de Metro est périmé. Je lance <code>npx expo start -c</code>, comme le 12 octobre.</span>
-            <span data-lang="en">Seen this before: the Metro cache is stale. Running <code>npx expo start -c</code>, like on October 12.</span></div>
+        <div class="pane" data-pane="linux">
+          <div class="line"><code>curl -fsSL https://raw.githubusercontent.com/raucheacho/lorag/main/scripts/install.sh | sh -s -- --service</code><button class="copy" type="button" aria-label="Copy"><svg><use href="#cp"/></svg></button></div>
+        </div>
+        <div class="pane" data-pane="src">
+          <div class="line"><code>git clone https://github.com/raucheacho/lorag &amp;&amp; cd lorag &amp;&amp; make build</code><button class="copy" type="button" aria-label="Copy"><svg><use href="#cp"/></svg></button></div>
         </div>
       </div>
+      <div class="after">
+        <a href="https://github.com/raucheacho/lorag"><svg aria-hidden="true"><use href="#gh"/></svg><span data-lang="fr">Voir le code</span><span data-lang="en">View source</span></a>
+        <a href="https://github.com/raucheacho/lorag/blob/main/USER_GUIDE.md"><svg aria-hidden="true"><use href="#book"/></svg><span data-lang="fr">Guide d'utilisation</span><span data-lang="en">User guide</span></a>
+      </div>
+    </div>
+
+    <div class="term" aria-label="Terminal">
+      <div class="tbar"><span class="dots"><i></i><i></i><i></i></span><span>~/code/shop</span><span class="mcp">localhost:8080</span></div>
+<pre><span class="p">$</span> npm run dev
+<span class="e">Error: listen EADDRINUSE: address already in use :::3000</span>
+
+<span class="p">$</span> loragctl mem recall "listen EADDRINUSE :::3000"
+<span class="c">[ece4650cdd-1] +4/-0 2026-10-02</span>
+<span class="h">Fix:</span> lsof -ti :3000 | xargs kill -9
+<span class="h">Ctx:</span> node@22
+<span class="c"><span data-lang="fr"># déjà résolu le 2 octobre, rappelé en quelques tokens</span><span data-lang="en"># solved on October 2, recalled in a few tokens</span></span>
+
+<span class="c"># MCP search · "<span data-lang="fr">pénalités de retard</span><span data-lang="en">late penalties</span>"</span>
+<span class="k">[1]</span> ~/docs/<span data-lang="fr">contrat-fournisseur</span><span data-lang="en">supplier-contract</span>.pdf <span class="v">p. 12</span>
+<span class="k">[2]</span> ~/<span data-lang="fr">reunions</span><span data-lang="en">meetings</span>/2026-10-03.m4a <span class="v">14:32-14:58</span>
+<span class="k">[3]</span> ~/docs/<span data-lang="fr">conditions</span><span data-lang="en">terms</span>.docx <span class="v">L40-52</span></pre>
     </div>
   </div>
 
-  <section id="fonctions" class="wrap">
-    <div class="head">
-      <h2>
-        <span data-lang="fr">Une seule mémoire.<span class="dim">Pour tous tes agents.</span></span>
-        <span data-lang="en">One memory.<span class="dim">For all your agents.</span></span>
-      </h2>
+  <div class="stats">
+    <div class="wrap">
+      <div class="stat"><b>20–60</b><span data-lang="fr">tokens par rappel</span><span data-lang="en">tokens per recall</span></div>
+      <div class="stat"><b>1</b><span data-lang="fr">binaire, Studio inclus</span><span data-lang="en">binary, Studio included</span></div>
+      <div class="stat"><b>0</b><span data-lang="fr">service cloud nécessaire</span><span data-lang="en">cloud services needed</span></div>
+      <div class="stat"><b>7</b><span data-lang="fr">outils MCP</span><span data-lang="en">MCP tools</span></div>
+    </div>
+  </div>
+
+  <section id="pipeline" class="wrap">
+    <p class="kicker">01 · <span data-lang="fr">fonctionnement</span><span data-lang="en">how it works</span></p>
+    <h2><span data-lang="fr">De tes fichiers à tes agents.</span><span data-lang="en">From your files to your agents.</span></h2>
+    <p class="intro"><span data-lang="fr">Lorag tourne en fond avec ta session. Il lit tes dossiers, les découpe, les indexe dans son moteur, puis répond à tes agents sur localhost.</span><span data-lang="en">Lorag runs in the background with your session. It reads your folders, splits them, indexes them in its engine, then answers your agents on localhost.</span></p>
+
+    <div class="pipe">
+      <div class="stage">
+        <div class="n">sources</div>
+        <h3><span data-lang="fr">Tes dossiers</span><span data-lang="en">Your folders</span></h3>
+        <p><span data-lang="fr">Surveillés : un fichier modifié est réindexé, un fichier inchangé est ignoré.</span><span data-lang="en">Watched: a changed file is reindexed, an unchanged one is skipped.</span></p>
+        <div class="chips"><span class="chip">pdf</span><span class="chip">md</span><span class="chip">code</span><span class="chip">docx</span><span class="chip">pptx</span><span class="chip">xlsx</span><span class="chip">m4a</span><span class="chip">mp4</span><span class="chip">png</span></div>
+      </div>
+      <div class="stage">
+        <div class="n"><span data-lang="fr">extraction</span><span data-lang="en">extraction</span></div>
+        <h3><span data-lang="fr">Texte et positions</span><span data-lang="en">Text and positions</span></h3>
+        <p><span data-lang="fr">Chaque morceau garde sa page, ses lignes ou sa minute.</span><span data-lang="en">Each chunk keeps its page, lines or minute.</span></p>
+        <div class="chips"><span class="chip">poppler</span><span class="chip">whisper.cpp</span><span class="chip">ffmpeg</span><span class="chip">tesseract</span></div>
+      </div>
+      <div class="stage">
+        <div class="n">index</div>
+        <h3>VectixDB</h3>
+        <p><span data-lang="fr">Moteur en Zig lié au démon. Embeddings et BM25 fusionnés, résiste aux plantages.</span><span data-lang="en">Zig engine linked into the daemon. Embeddings and BM25 fused, crash safe.</span></p>
+        <div class="chips"><span class="chip on">Ollama · bge-m3</span><span class="chip on">BM25</span></div>
+      </div>
+      <div class="stage">
+        <div class="n">mcp · localhost:8080</div>
+        <h3><span data-lang="fr">Tes agents</span><span data-lang="en">Your agents</span></h3>
+        <p><span data-lang="fr">Tout client MCP en HTTP, et le Studio pour voir ce qu'ils demandent.</span><span data-lang="en">Any MCP client over HTTP, and the Studio to see what they ask.</span></p>
+        <div class="chips"><span class="chip">Claude Code</span><span class="chip">Cursor</span><span class="chip">VS Code</span><span class="chip">Codex</span></div>
+      </div>
     </div>
 
-    <div class="bento">
-      <div class="card span-4">
-        <div class="visual">
-          <div class="flow">
-            <div class="box machine">
-              <div class="label"><span data-lang="fr">Sur ta machine</span><span data-lang="en">On your machine</span></div>
-              <div class="chips">
-                <span class="chip on"><span data-lang="fr">Fichiers</span><span data-lang="en">Files</span></span>
-                <span class="chip on">Ollama</span>
-                <span class="chip on">whisper.cpp</span>
-                <span class="chip on">tesseract</span>
-                <span class="chip on">VectixDB</span>
-              </div>
-            </div>
-            <div class="arrow">MCP · localhost<div class="line"></div></div>
-            <div class="box agents">
-              <div class="label"><span data-lang="fr">Tes agents</span><span data-lang="en">Your agents</span></div>
-              <div class="chips"><span class="chip">Cursor</span><span class="chip">VS Code</span><span class="chip">Codex</span></div>
-            </div>
-          </div>
+    <div class="under">
+      <div>
+        <h4><span data-lang="fr">Recherche hybride</span><span data-lang="en">Hybrid search</span></h4>
+        <p><span data-lang="fr">Un message d'erreur se retrouve mot pour mot, une idée par son sens.</span><span data-lang="en">An error message is found word for word, an idea by its meaning.</span></p>
+        <div class="fuse" aria-hidden="true">
+          <div class="r"><span data-lang="fr">sens</span><span data-lang="en">meaning</span><span class="bar"><i style="width:64%;background:var(--vector)"></i></span><b>0.64</b></div>
+          <div class="r"><span data-lang="fr">mots</span><span data-lang="en">words</span><span class="bar"><i style="width:88%;background:var(--keyword)"></i></span><b>0.88</b></div>
+          <div class="r"><span>fusion</span><span class="bar"><i style="width:93%;background:var(--accent)"></i></span><b>0.93</b></div>
         </div>
-        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span data-lang="fr">Tout reste chez toi</span><span data-lang="en">Everything stays home</span></h3>
-        <p><span data-lang="fr">Embeddings, transcription et OCR tournent en local. Tes agents se branchent en MCP sur ta machine. Aucune donnée ne sort sans ton action.</span><span data-lang="en">Embeddings, transcription and OCR run locally. Your agents connect over MCP on your machine. No data leaves without your say.</span></p>
+      </div>
+      <div>
+        <h4><span data-lang="fr">Au bon endroit</span><span data-lang="en">Right on the spot</span></h4>
+        <p><span data-lang="fr">Chaque résultat renvoie à la page d'un PDF, aux lignes d'un fichier ou à la minute d'un audio ou d'une vidéo.</span><span data-lang="en">Each result points to a PDF page, the lines of a file or the minute of a recording.</span></p>
+      </div>
+      <div>
+        <h4><span data-lang="fr">Rien ne sort</span><span data-lang="en">Nothing leaves</span></h4>
+        <p><span data-lang="fr">Embeddings, transcription et OCR tournent en local. Aucune donnée ne sort sans ton action.</span><span data-lang="en">Embeddings, transcription and OCR run locally. No data leaves without your say.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="memoire" class="wrap">
+    <div class="loop">
+      <div class="side">
+        <p class="kicker">02 · <span data-lang="fr">mémoire</span><span data-lang="en">memory</span></p>
+        <h2><span data-lang="fr">Rappeler, garder, noter.</span><span data-lang="en">Recall, keep, rate.</span></h2>
+        <p class="intro"><span data-lang="fr">Tes agents reçoivent ces règles à la connexion. Ce qu'ils apprennent sert à tous les autres.</span><span data-lang="en">Your agents get these rules when they connect. What one learns, the others reuse.</span></p>
+        <ol class="steps">
+          <li><div><h3><span data-lang="fr">Rappeler d'abord</span><span data-lang="en">Recall first</span></h3><p><span data-lang="fr">Sur une erreur, avant le web, ou avant de répondre sur toi : <code>memory_recall</code>.</span><span data-lang="en">On an error, before the web, or before answering about you: <code>memory_recall</code>.</span></p></div></li>
+          <li><div><h3><span data-lang="fr">Garder ce qui est vérifié</span><span data-lang="en">Keep what is verified</span></h3><p><span data-lang="fr">Un correctif, une réponse avec sa source, un fait sur toi ou tes proches : <code>memory_save</code>.</span><span data-lang="en">A fix, an answer with its source, a fact about you or people you know: <code>memory_save</code>.</span></p></div></li>
+          <li><div><h3><span data-lang="fr">Dire si ça a marché</span><span data-lang="en">Say if it worked</span></h3><p><span data-lang="fr">Les bonnes entrées remontent, les fausses sont à revérifier puis retirées : <code>memory_feedback</code>.</span><span data-lang="en">Good entries rise, wrong ones go to recheck then retire: <code>memory_feedback</code>.</span></p></div></li>
+        </ol>
+      </div>
+      <div class="calls">
+        <div class="call">
+          <div class="ch"><b>memory_recall</b><span class="tag">hit · 38 tokens</span></div>
+<pre>{ "error": "Error: Cannot find module 'metro-runtime'",
+  "project": "shop", "context": { "expo": "52.0.1" } }</pre>
+<pre><span class="c">[3f2a9c41b7-1] +3/-0 2026-10-12</span>
+<span class="h">Fix:</span> npx expo start -c
+<span class="h">Ctx:</span> expo@52</pre>
+        </div>
+        <div class="call">
+          <div class="ch"><b>memory_save</b><span class="tag">knowledge</span></div>
+<pre>{ "kind": "knowledge",
+  "problem": "GitHub REST API rate limit",
+  "solution": "5,000 requests per hour per user",
+  "source": "https://docs.github.com/en/rest/rate-limit" }</pre>
+        </div>
+        <div class="call">
+          <div class="ch"><b>memory_save</b><span class="tag">fact</span></div>
+<pre>{ "kind": "fact",
+  "problem": "<span data-lang="fr">Qui est Karim ?</span><span data-lang="en">Who is Karim?</span>",
+  "solution": "<span data-lang="fr">Associé de l'utilisateur depuis 2024</span><span data-lang="en">The user's business partner since 2024</span>" }</pre>
+        </div>
+        <div class="call">
+          <div class="ch"><b>memory_feedback</b><span class="tag">verified</span></div>
+<pre>{ "id": "3f2a9c41b7-1", "worked": true }</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="fonctions" class="wrap">
+    <p class="kicker">03 · <span data-lang="fr">dans le binaire</span><span data-lang="en">in the binary</span></p>
+    <h2><span data-lang="fr">Tout ce qu'il faut, rien à héberger.</span><span data-lang="en">Everything you need, nothing to host.</span></h2>
+    <p class="intro"><span data-lang="fr">Un seul exécutable pour macOS et Linux : le démon, le moteur, le Studio et la CLI.</span><span data-lang="en">A single executable for macOS and Linux: the daemon, the engine, the Studio and the CLI.</span></p>
+    <div class="feats">
+      <div class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+        <h3>Studio</h3>
+        <p><span data-lang="fr">Vois ce que tes agents demandent, teste une requête, comprends pourquoi un résultat sort et corrige la mémoire.</span><span data-lang="en">See what your agents ask, test a query, understand why a result comes up and fix the memory.</span></p>
+      </div>
+      <div class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg>
+        <h3><span data-lang="fr">Historique et sources</span><span data-lang="en">History and sources</span></h3>
+        <p><span data-lang="fr">Chaque entrée garde sa source, ses versions et ses révisions. Un fait qui change remplace l'ancien sans l'effacer.</span><span data-lang="en">Every entry keeps its source, versions and revisions. A fact that changes replaces the old one without erasing it.</span></p>
+      </div>
+      <div class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6Z"/><path d="m9 12 2 2 4-4"/></svg>
+        <h3><span data-lang="fr">Secrets masqués</span><span data-lang="en">Secrets masked</span></h3>
+        <p><span data-lang="fr">Clés d'API, jetons et mots de passe sont masqués avant l'écriture. Mémoire et documents restent des données, jamais des ordres.</span><span data-lang="en">API keys, tokens and passwords are masked before writing. Memory and documents stay data, never instructions.</span></p>
+      </div>
+      <div class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 17 6-6-6-6M12 19h8"/></svg>
+        <h3>loragctl</h3>
+        <p><span data-lang="fr">Indexer, chercher, rappeler et enregistrer depuis le terminal ou un script. Un log d'erreur se passe tel quel sur l'entrée standard.</span><span data-lang="en">Index, search, recall and save from the terminal or a script. An error log can be piped in as is.</span></p>
+      </div>
+      <div class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h6l2-6 4 12 2-6h6"/></svg>
+        <h3>API REST</h3>
+        <p><span data-lang="fr">Tout ce que fait le Studio passe par <code>/api/v1</code> : recherche, mémoire, statistiques, export en JSON Lines.</span><span data-lang="en">Everything the Studio does goes through <code>/api/v1</code>: search, memory, stats, JSON Lines export.</span></p>
+      </div>
+      <div class="feat">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4"/><circle cx="12" cy="12" r="3"/></svg>
+        <h3><span data-lang="fr">Pas que pour le code</span><span data-lang="en">Not only for code</span></h3>
+        <p><span data-lang="fr">Un assistant vocal ou un agent de support ont le même besoin : ne pas redemander ce qu'on leur a déjà dit.</span><span data-lang="en">A voice assistant or a support agent need the same thing: not to ask again what they were already told.</span></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="integrations" class="wrap">
+    <p class="kicker">04 · <span data-lang="fr">intégrations</span><span data-lang="en">integrations</span></p>
+    <h2><span data-lang="fr">Branche n'importe quel client MCP.</span><span data-lang="en">Plug in any MCP client.</span></h2>
+    <p class="intro"><span data-lang="fr">Lorag sert MCP en HTTP sur <code>localhost:8080/mcp</code>. Le Studio donne la configuration de chaque client et la teste.</span><span data-lang="en">Lorag serves MCP over HTTP on <code>localhost:8080/mcp</code>. The Studio gives each client's configuration and tests it.</span></p>
+    <div class="integ">
+      <div class="box" data-tabs>
+        <div class="tabs" role="tablist">
+          <button type="button" role="tab" aria-selected="true" data-tab="claude">Claude Code</button>
+          <button type="button" role="tab" aria-selected="false" data-tab="cursor">Cursor</button>
+          <button type="button" role="tab" aria-selected="false" data-tab="vscode">VS Code</button>
+          <button type="button" role="tab" aria-selected="false" data-tab="http">HTTP</button>
+        </div>
+        <div class="pane on" data-pane="claude">
+          <div class="where"><span data-lang="fr">Le plugin ajoute le serveur, un hook qui rappelle un correctif quand une commande échoue, et le skill /lorag:memory.</span><span data-lang="en">The plugin adds the server, a hook that recalls a fix when a command fails, and the /lorag:memory skill.</span></div>
+<pre>/plugin marketplace add raucheacho/lorag-claude-code
+/plugin install lorag@lorag</pre>
+        </div>
+        <div class="pane" data-pane="cursor">
+          <div class="where">~/.cursor/mcp.json</div>
+<pre>{
+  "mcpServers": {
+    "lorag": { "url": "http://localhost:8080/mcp" }
+  }
+}</pre>
+        </div>
+        <div class="pane" data-pane="vscode">
+          <div class="where">.vscode/mcp.json</div>
+<pre>{
+  "servers": {
+    "lorag": { "type": "http", "url": "http://localhost:8080/mcp" }
+  }
+}</pre>
+        </div>
+        <div class="pane" data-pane="http">
+          <div class="where"><span data-lang="fr">Tout client qui accepte un serveur HTTP (Streamable HTTP)</span><span data-lang="en">Any client that accepts an HTTP (Streamable HTTP) server</span></div>
+<pre>{
+  "mcpServers": {
+    "lorag": { "type": "http", "url": "http://localhost:8080/mcp" }
+  }
+}</pre>
+        </div>
       </div>
 
-      <div class="card span-2">
-        <div class="visual">
-          <div class="big">
-            <div class="num">20–60<small>tokens</small></div>
-            <div class="cap"><span data-lang="fr">par rappel</span><span data-lang="en">per recall</span></div>
-            <div class="sub"><span data-lang="fr">avec la source et l'historique</span><span data-lang="en">with source and history</span></div>
-          </div>
-        </div>
-        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M12 5v13"/></svg><span data-lang="fr">Ce qu'ils ont appris</span><span data-lang="en">What they learned</span></h3>
-        <p><span data-lang="fr">Un correctif, une réponse trouvée sur le web, un fait sur toi : rappelé au lieu d'être cherché à nouveau.</span><span data-lang="en">A fix, an answer found on the web, a fact about you: recalled instead of searched for again.</span></p>
-      </div>
-
-      <div class="card span-2">
-        <div class="visual">
-          <div class="score">
-            <div class="r v"><span data-lang="fr">sens</span><span data-lang="en">meaning</span><span class="bar"><i></i></span><b>0.64</b></div>
-            <div class="r w"><span data-lang="fr">mots</span><span data-lang="en">words</span><span class="bar"><i></i></span><b>0.88</b></div>
-            <div class="r f"><span>fusion</span><span class="bar"><i></i></span><b>0.93</b></div>
-          </div>
-        </div>
-        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span data-lang="fr">Recherche hybride</span><span data-lang="en">Hybrid search</span></h3>
-        <p><span data-lang="fr">Embeddings et BM25 fusionnés. Un message d'erreur se retrouve mot pour mot, une idée par son sens.</span><span data-lang="en">Embeddings and BM25, fused. An error message is found word for word, an idea by its meaning.</span></p>
-      </div>
-
-      <div class="card span-2">
-        <div class="visual">
-          <div class="list">
-            <div class="row"><span>contrat.pdf</span><span class="t">p. 12</span></div>
-            <div class="row"><span>engine.go</span><span class="t">L42–58</span></div>
-            <div class="row faded"><span><span data-lang="fr">réunion.m4a</span><span data-lang="en">meeting.m4a</span></span><span class="t">14:32</span></div>
-          </div>
-        </div>
-        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg><span data-lang="fr">Au bon endroit</span><span data-lang="en">Right on the spot</span></h3>
-        <p><span data-lang="fr">Chaque résultat pointe vers la page d'un PDF, les lignes d'un fichier ou la minute d'un audio.</span><span data-lang="en">Each result points to a PDF page, the lines of a file or the minute of a recording.</span></p>
-      </div>
-
-      <div class="card span-2">
-        <div class="visual">
-          <div class="calc">
-            <div><span>recall · cursor</span><b>hit</b></div>
-            <div><span>search · codex</span><b><span data-lang="fr">5 résultats</span><span data-lang="en">5 results</span></b></div>
-            <div><span>save · vscode</span><b>knowledge</b></div>
-          </div>
-        </div>
-        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>Studio</h3>
-        <p><span data-lang="fr">Vois ce que tes agents demandent, teste une requête, comprends un score et corrige la mémoire.</span><span data-lang="en">See what your agents ask, test a query, understand a score and fix the memory.</span></p>
-      </div>
-
-      <div class="card span-6">
-        <div class="visual" style="min-height: 110px">
-          <div class="brains">
-            <span class="on">PDF <small><span data-lang="fr">par page</span><span data-lang="en">by page</span></small></span>
-            <span>Markdown</span><span><span data-lang="fr">Code</span><span data-lang="en">Code</span></span><span>Word</span><span>PowerPoint</span><span>Excel</span>
-            <span class="on">Audio <small>whisper</small></span><span class="on"><span data-lang="fr">Vidéo</span><span data-lang="en">Video</span> <small>whisper + OCR</small></span><span>Images</span>
-          </div>
-        </div>
-        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg><span data-lang="fr">Tes fichiers, tels qu'ils sont</span><span data-lang="en">Your files, as they are</span></h3>
-        <p><span data-lang="fr">Documents, code, présentations, tableurs, audio, vidéo et images. Lorag surveille tes dossiers et réindexe ce qui change.</span><span data-lang="en">Documents, code, slides, spreadsheets, audio, video and images. Lorag watches your folders and reindexes what changes.</span></p>
-      </div>
+      <table class="tools">
+        <thead><tr><th><span data-lang="fr">Outil</span><span data-lang="en">Tool</span></th><th><span data-lang="fr">Rôle</span><span data-lang="en">Role</span></th></tr></thead>
+        <tbody>
+          <tr><td>memory_recall<span class="ro">read</span></td><td><span data-lang="fr">Un correctif, une réponse ou un fait déjà connu</span><span data-lang="en">A fix, an answer or a fact already known</span></td></tr>
+          <tr><td>memory_save<span class="wr">write</span></td><td><span data-lang="fr">Garde ce qui est vérifié et réutilisable</span><span data-lang="en">Keeps what is verified and reusable</span></td></tr>
+          <tr><td>memory_feedback<span class="wr">write</span></td><td><span data-lang="fr">Dit si une entrée a aidé</span><span data-lang="en">Says whether an entry helped</span></td></tr>
+          <tr><td>search<span class="ro">read</span></td><td><span data-lang="fr">Cherche dans tes fichiers, avec la position</span><span data-lang="en">Searches your files, with the position</span></td></tr>
+          <tr><td>get_document<span class="ro">read</span></td><td><span data-lang="fr">Le texte complet d'un document</span><span data-lang="en">The full text of a document</span></td></tr>
+          <tr><td>ingest<span class="wr">write</span></td><td><span data-lang="fr">Indexe un fichier ou un dossier</span><span data-lang="en">Indexes a file or a folder</span></td></tr>
+          <tr><td>get_stats<span class="ro">read</span></td><td><span data-lang="fr">Documents, morceaux, mémoire et état de l'index</span><span data-lang="en">Documents, chunks, memory and index state</span></td></tr>
+        </tbody>
+      </table>
     </div>
   </section>
 
   <section id="installer" class="wrap">
-    <div class="head">
-      <h2>
-        <span data-lang="fr">Un seul binaire.<span class="dim">Il tourne en fond avec ta session.</span></span>
-        <span data-lang="en">A single binary.<span class="dim">It runs in the background with your session.</span></span>
-      </h2>
-    </div>
-    <div class="steps">
-      <div class="step">
-        <div class="n">01</div>
-        <h3><span data-lang="fr">Installe</span><span data-lang="en">Install</span></h3>
-        <p><span data-lang="fr">Le Studio et le moteur sont dans le binaire.</span><span data-lang="en">The Studio and the engine ship in the binary.</span></p>
-        <code class="cmd">brew install raucheacho/tap/lorag</code>
-        <code class="cmd">brew services start lorag</code>
-        <p class="alt"><span data-lang="fr">Linux sans Homebrew :</span><span data-lang="en">Linux without Homebrew:</span> <code>install.sh --service</code></p>
-      </div>
-      <div class="step">
-        <div class="n">02</div>
-        <h3><span data-lang="fr">Ajoute le modèle</span><span data-lang="en">Add the model</span></h3>
-        <p><span data-lang="fr">Un modèle d'embedding multilingue pour Ollama, 1,2 Go.</span><span data-lang="en">A multilingual embedding model for Ollama, 1.2 GB.</span></p>
-        <code class="cmd">ollama pull bge-m3</code>
-      </div>
-      <div class="step">
-        <div class="n">03</div>
-        <h3><span data-lang="fr">Branche tes agents</span><span data-lang="en">Connect your agents</span></h3>
-        <p><span data-lang="fr">Ouvre le Studio (localhost:8080), choisis un dossier à indexer, puis copie la configuration MCP de ton client depuis Connect.</span><span data-lang="en">Open the Studio (localhost:8080), pick a folder to index, then copy your client's MCP config from Connect.</span></p>
-        <code class="cmd">lorag open</code>
-      </div>
+    <p class="kicker">05 · <span data-lang="fr">installer</span><span data-lang="en">install</span></p>
+    <h2><span data-lang="fr">Trois commandes.</span><span data-lang="en">Three commands.</span> <span class="dim"><span data-lang="fr">Il tourne en fond avec ta session.</span><span data-lang="en">It runs in the background with your session.</span></span></h2>
+    <p class="intro"></p>
+    <div class="setup">
+      <ol class="tl">
+        <li>
+          <span class="dot">1</span>
+          <h3><span data-lang="fr">Installe Lorag</span><span data-lang="en">Install Lorag</span></h3>
+          <p><span data-lang="fr">Le Studio, le moteur et les outils PDF, audio, vidéo et OCR viennent avec.</span><span data-lang="en">The Studio, the engine and the PDF, audio, video and OCR tools come with it.</span></p>
+          <div class="cmd"><code>brew install raucheacho/tap/lorag</code><button class="copy" type="button" aria-label="Copy"><svg><use href="#cp"/></svg></button></div>
+          <div class="cmd"><code>brew services start lorag</code><button class="copy" type="button" aria-label="Copy"><svg><use href="#cp"/></svg></button></div>
+        </li>
+        <li>
+          <span class="dot">2</span>
+          <h3><span data-lang="fr">Ajoute le modèle</span><span data-lang="en">Add the model</span></h3>
+          <p><span data-lang="fr">Un modèle d'embedding multilingue pour Ollama, 1,2 Go.</span><span data-lang="en">A multilingual embedding model for Ollama, 1.2 GB.</span></p>
+          <div class="cmd"><code>ollama pull bge-m3</code><button class="copy" type="button" aria-label="Copy"><svg><use href="#cp"/></svg></button></div>
+        </li>
+        <li>
+          <span class="dot">3</span>
+          <h3><span data-lang="fr">Indexe et branche</span><span data-lang="en">Index and connect</span></h3>
+          <p><span data-lang="fr">Le Studio s'ouvre sur localhost:8080 : choisis un dossier, puis copie la configuration de ton client dans Connect.</span><span data-lang="en">The Studio opens on localhost:8080: pick a folder, then copy your client's config from Connect.</span></p>
+          <div class="cmd"><code>lorag open</code><button class="copy" type="button" aria-label="Copy"><svg><use href="#cp"/></svg></button></div>
+        </li>
+      </ol>
+      <dl class="spec">
+        <div><dt>macOS</dt><dd><span data-lang="fr">13 Ventura ou plus</span><span data-lang="en">13 Ventura or later</span><span class="note"><span data-lang="fr">Puce Apple ou Intel.</span><span data-lang="en">Apple chip or Intel.</span></span></dd></div>
+        <div><dt>Linux</dt><dd>amd64, arm64<span class="note"><span data-lang="fr">glibc 2.28 ou plus (Debian 10, Ubuntu 20.04).</span><span data-lang="en">glibc 2.28 or later (Debian 10, Ubuntu 20.04).</span></span></dd></div>
+        <div><dt>Embeddings</dt><dd><a href="https://ollama.com">Ollama</a><span data-lang="fr"> avec bge-m3</span><span data-lang="en"> with bge-m3</span></dd></div>
+        <div><dt><span data-lang="fr">Inclus</span><span data-lang="en">Included</span></dt><dd>poppler, ffmpeg, whisper.cpp, tesseract<span class="note"><span data-lang="fr">Installés par Homebrew ; sur Linux, avec apt.</span><span data-lang="en">Installed by Homebrew; on Linux, with apt.</span></span></dd></div>
+        <div><dt><span data-lang="fr">Licence</span><span data-lang="en">License</span></dt><dd>MIT<span class="note"><span data-lang="fr">Moteur </span><span data-lang="en">Engine: </span><a href="https://github.com/raucheacho/vectixdb">VectixDB</a>, Apache-2.0.</span></dd></div>
+      </dl>
     </div>
   </section>
 
-  <section id="configuration" class="wrap">
-    <div class="head">
-      <h2>
-        <span data-lang="fr">Configuration requise.<span class="dim">Ce qu'il faut à ta machine.</span></span>
-        <span data-lang="en">Requirements.<span class="dim">What your machine needs.</span></span>
-      </h2>
-    </div>
-    <dl class="spec">
-      <div><dt>macOS</dt><dd><span data-lang="fr">13 Ventura ou plus récent</span><span data-lang="en">13 Ventura or later</span><span class="note"><span data-lang="fr">Puce Apple ou Intel.</span><span data-lang="en">Apple chip or Intel.</span></span></dd></div>
-      <div><dt>Linux</dt><dd>amd64, arm64<span class="note"><span data-lang="fr">glibc 2.28 ou plus (Debian 10, Ubuntu 20.04).</span><span data-lang="en">glibc 2.28 or later (Debian 10, Ubuntu 20.04).</span></span></dd></div>
-      <div><dt>Embeddings</dt><dd><a href="https://ollama.com">Ollama</a><span data-lang="fr"> avec bge-m3</span><span data-lang="en"> with bge-m3</span></dd></div>
-      <div><dt><span data-lang="fr">Inclus</span><span data-lang="en">Included</span></dt><dd>poppler, ffmpeg, whisper.cpp, tesseract<span class="note"><span data-lang="fr">PDF par page, audio, vidéo et OCR. Installés par Homebrew ; sur Linux, avec apt.</span><span data-lang="en">PDF pages, audio, video and OCR. Installed by Homebrew; on Linux, with apt.</span></span></dd></div>
-      <div><dt><span data-lang="fr">Clients</span><span data-lang="en">Clients</span></dt><dd><span data-lang="fr">Tout client MCP</span><span data-lang="en">Any MCP client</span><span class="note"><span data-lang="fr">En HTTP, ou par un pont stdio.</span><span data-lang="en">Over HTTP, or through a stdio bridge.</span></span></dd></div>
-      <div><dt><span data-lang="fr">Licence</span><span data-lang="en">License</span></dt><dd>MIT<span class="note"><span data-lang="fr">Moteur </span><span data-lang="en">Engine: </span><a href="https://github.com/raucheacho/vectixdb">VectixDB</a>, Apache-2.0.</span></dd></div>
-    </dl>
-  </section>
-
-  <div class="final">
-    <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
-    <h2>
-      <span data-lang="fr">Donne une mémoire à tes agents.<span class="dim">Libre et local.</span></span>
-      <span data-lang="en">Give your agents a memory.<span class="dim">Open and local.</span></span>
-    </h2>
-    <div class="ctas">
-      <a class="btn lg" href="#installer">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 8 5 4-5 4M13 17h6"/></svg>
-        <span data-lang="fr">Installer</span><span data-lang="en">Install</span>
-      </a>
-      <a class="btn lg ghost" href="https://github.com/raucheacho/lorag">
-        <svg aria-hidden="true"><use href="#gh"/></svg>GitHub
-      </a>
+  <div class="band">
+    <div class="wrap">
+      <div>
+        <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
+        <h2><span data-lang="fr">Donne une mémoire à tes agents.</span><span data-lang="en">Give your agents a memory.</span><br><span class="dim"><span data-lang="fr">Libre et local.</span><span data-lang="en">Open and local.</span></span></h2>
+      </div>
+      <div class="install">
+        <div class="line"><code>brew install raucheacho/tap/lorag</code><button class="copy" type="button" aria-label="Copy"><svg><use href="#cp"/></svg></button></div>
+      </div>
     </div>
   </div>
 </main>
@@ -511,7 +595,8 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
     <span>© 2026 Rauche Acho</span>
     <span class="fl">
       <a href="https://github.com/raucheacho/lorag/releases"><span data-lang="fr">Versions</span><span data-lang="en">Releases</span></a>
-      <a href="https://github.com/raucheacho/lorag/blob/main/USER_GUIDE.md"><span data-lang="fr">Guide</span><span data-lang="en">Guide</span></a>
+      <a href="https://github.com/raucheacho/lorag/blob/main/USER_GUIDE.md">Guide</a>
+      <a href="https://github.com/raucheacho/lorag-claude-code"><span data-lang="fr">Plugin Claude Code</span><span data-lang="en">Claude Code plugin</span></a>
       <a href="https://github.com/raucheacho/lorag">GitHub</a>
     </span>
   </div>
@@ -533,12 +618,36 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
   document.querySelectorAll(".lang button").forEach(function (b) {
     b.addEventListener("click", function () { set(b.dataset.set); });
   });
+
+  // Onglets
+  document.querySelectorAll("[data-tabs]").forEach(function (box) {
+    var buttons = box.querySelectorAll(".tabs button");
+    buttons.forEach(function (b) {
+      b.addEventListener("click", function () {
+        buttons.forEach(function (o) { o.setAttribute("aria-selected", String(o === b)); });
+        box.querySelectorAll(".pane").forEach(function (p) { p.classList.toggle("on", p.dataset.pane === b.dataset.tab); });
+      });
+    });
+  });
+
+  // Copier une commande
+  document.querySelectorAll(".copy").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var code = b.parentNode.querySelector("code");
+      if (!code || !navigator.clipboard) return;
+      navigator.clipboard.writeText(code.textContent).then(function () {
+        b.classList.add("done");
+        setTimeout(function () { b.classList.remove("done"); }, 1400);
+      }).catch(function () {});
+    });
+  });
+
   // La dernière version publiée, s'il y en a une.
   fetch("https://api.github.com/repos/raucheacho/lorag/releases/latest")
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (rel) {
       if (!rel || !rel.tag_name) return;
-      document.querySelectorAll(".version").forEach(function (e) { e.textContent = rel.tag_name + " · "; });
+      document.querySelectorAll(".version").forEach(function (e) { e.textContent = rel.tag_name; });
     })
     .catch(function () {});
 })();
