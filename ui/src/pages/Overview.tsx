@@ -48,8 +48,8 @@ export function OverviewPage() {
             <Stat
               label="Chunks"
               value={num(o.chunks)}
-              hint={`limit ${num(o.max_chunks)}`}
-              tone={o.chunks >= o.max_chunks ? 'bad' : o.chunks > o.max_chunks * 0.9 ? 'warn' : undefined}
+              hint={o.max_chunks > 0 ? `limit ${num(o.max_chunks)}` : 'no limit'}
+              tone={o.max_chunks <= 0 ? undefined : o.chunks >= o.max_chunks ? 'bad' : o.chunks > o.max_chunks * 0.9 ? 'warn' : undefined}
             />
             <Stat label="Index on disk" value={bytes(o.index.disk_bytes)} hint={`log ${bytes(o.index.wal_bytes)}`} />
             <Stat label="Store" value={bytes(o.db_bytes)} hint="documents & chunks" />

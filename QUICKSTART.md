@@ -73,6 +73,6 @@ L'agent reçoit sept outils, dont :
 | Un PDF n'a pas de numéro de page | `pdftotext` n'est pas installé |
 | Un audio ou une vidéo échoue avec `TRANSCRIPTION_DISABLED` | La transcription a été désactivée : Settings → Images and audio → Audio transcription, puis redémarrer |
 | Aucun résultat | Vérifiez dans Explorer que le fichier est indexé ; pour un identifiant exact, essayez le mode *Exact* |
-| `max chunks limit reached (5000)` | Sans clé de licence, l'index est limité à 5 000 chunks (voir [docs/STATUS.md](docs/STATUS.md)) |
+| `chunk limit reached (N)` | L'index a atteint la limite choisie : Settings → Max chunks (0 pour aucune limite), puis redémarrer |
 
 La suite : [USER_GUIDE.md](USER_GUIDE.md).

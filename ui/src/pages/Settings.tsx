@@ -195,7 +195,9 @@ export function SettingsPage() {
             <Field label="Workers" hint="Files indexed in parallel; 0 disables the queue.">
               {num('index_workers', { min: 0, max: 32 })}
             </Field>
-            <Field label="Max chunks">{num('max_chunks', { min: 1 })}</Field>
+            <Field label="Max chunks" hint="Cap on the index size; 0 removes the limit. Applies after a restart.">
+              {num('max_chunks', { min: 0 })}
+            </Field>
           </Group>
 
           <Group title="MCP">

@@ -27,8 +27,13 @@ type Indexer struct {
 	embedder      embeddings.Provider
 	parserReg     *parsers.Registry
 	chunker       *Chunker
-	maxChunks     int
+	maxChunks     int    // 0: no limit
 	queue         *Queue // Async queue for parallel indexing
+
+	// reserved counts the chunks of files being written by the workers, so
+	// that parallel files cannot all pass the limit check at once.
+	limitMu  sync.Mutex
+	reserved int
 
 	eventsMu sync.Mutex
 	events   []Event // most recent last
@@ -69,7 +74,7 @@ func (i *Indexer) RecentEvents(limit int) []Event {
 
 // Config holds indexer configuration
 type Config struct {
-	MaxChunks    int
+	MaxChunks    int // 0: no limit
 	ChunkSize    int
 	ChunkOverlap int
 	Workers      int // Number of concurrent workers
@@ -209,6 +214,14 @@ func (i *Indexer) indexFile(ctx context.Context, path string) (*store.Document, 
 		return existing, false, nil
 	}
 
+	// A full index refuses new files before the costly extraction (OCR,
+	// transcription); a changed file may still replace its previous version.
+	if existing == nil {
+		if err := i.checkRoom(0); err != nil {
+			return nil, false, err
+		}
+	}
+
 	segments, err := i.parserReg.Extract(path)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to parse file: %w", err)
@@ -218,13 +231,15 @@ func (i *Indexer) indexFile(ctx context.Context, path string) (*store.Document, 
 		return nil, false, fmt.Errorf("no text found in %s", filepath.Base(path))
 	}
 
-	currentCount, _ := i.store.CountChunks()
+	replaced := 0
 	if existing != nil {
-		currentCount -= existing.ChunkCount
+		replaced = existing.ChunkCount
 	}
-	if currentCount+len(pieces) > i.maxChunks {
-		return nil, false, fmt.Errorf("max chunks limit reached (%d)", i.maxChunks)
+	release, err := i.reserve(len(pieces), replaced)
+	if err != nil {
+		return nil, false, err
 	}
+	defer release()
 
 	// Embed everything before touching the store, so that a failure (e.g. the
 	// embedding service being down) leaves the previous version intact.
@@ -290,6 +305,45 @@ func (i *Indexer) indexFile(ctx context.Context, path string) (*store.Document, 
 		return nil, false, fmt.Errorf("failed to index chunks: %w", err)
 	}
 	return doc, true, nil
+}
+
+// checkRoom fails when the index has no room for n more chunks.
+func (i *Indexer) checkRoom(n int) error {
+	if i.maxChunks <= 0 {
+		return nil
+	}
+	i.limitMu.Lock()
+	defer i.limitMu.Unlock()
+	count, _ := i.store.CountChunks()
+	if count+i.reserved+n > i.maxChunks || (n == 0 && count+i.reserved >= i.maxChunks) {
+		return i.limitError()
+	}
+	return nil
+}
+
+// reserve books n chunks for a file about to be written, minus the replaced
+// chunks of its previous version, until release is called. The reservation
+// is released after the write, so the store count then includes them.
+func (i *Indexer) reserve(n, replaced int) (release func(), err error) {
+	if i.maxChunks <= 0 {
+		return func() {}, nil
+	}
+	i.limitMu.Lock()
+	defer i.limitMu.Unlock()
+	count, _ := i.store.CountChunks()
+	if count-replaced+i.reserved+n > i.maxChunks {
+		return nil, i.limitError()
+	}
+	i.reserved += n
+	return func() {
+		i.limitMu.Lock()
+		i.reserved -= n
+		i.limitMu.Unlock()
+	}, nil
+}
+
+func (i *Indexer) limitError() error {
+	return fmt.Errorf("chunk limit reached (%d): raise max_chunks in Settings (0 removes the limit) or LORAG_MAX_CHUNKS", i.maxChunks)
 }
 
 // indexEntry is what the search index keeps of a chunk.

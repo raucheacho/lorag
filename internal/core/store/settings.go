@@ -153,7 +153,7 @@ func DefaultSettings() *AppSettings {
 		VectorEfSearch:       64,
 		BM25K1:               1.2,
 		BM25B:                0.75,
-		MaxChunks:            50000,
+		MaxChunks:            0, // no limit
 		ChunkSize:            512,
 		ChunkOverlap:         50,
 		IndexWorkers:         3,
