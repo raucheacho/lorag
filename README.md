@@ -5,16 +5,16 @@
 - **Mémoire des agents.** Correctifs et réponses déjà trouvés, faits sur vous et vos proches (une personne, une préférence, un engagement), avec leur source et leur historique, rappelés en 20 à 60 tokens ([docs/MEMORY.md](docs/MEMORY.md)). Pour le code comme pour un assistant vocal comme Benom.
 - **Recherche hybride.** Le sens (embeddings) et les mots exacts (BM25) fusionnés. Les messages d'erreur sont cherchés mot pour mot.
 - **Positions exactes.** Chaque résultat renvoie à la page d'un PDF, aux lignes d'un fichier ou à la minute d'un audio ou d'une vidéo ([docs/MEDIA_INDEXING.md](docs/MEDIA_INDEXING.md)).
-- **MCP.** Claude Code, Cursor, VS Code, Codex et tout client MCP se branchent sur la même mémoire ([docs/MCP.md](docs/MCP.md)).
+- **MCP.** Claude Code, Cursor, VS Code, Codex et tout client MCP se branchent sur la même mémoire ([docs/MCP.md](docs/MCP.md)). Pour Claude Code, le plugin [lorag-claude-code](https://github.com/raucheacho/lorag-claude-code) ajoute le MCP, un hook et un skill en une installation.
 - **Studio.** Une interface web pour voir ce que les agents demandent, tester une requête et comprendre pourquoi un résultat sort, et corriger la mémoire.
 - **Local.** Embeddings par Ollama, transcription par whisper.cpp, OCR par tesseract. Aucune donnée ne sort sans votre action.
 - **Fiable.** Le moteur de recherche, [VectixDB](https://github.com/raucheacho/vectixdb), est écrit en Zig, résiste aux plantages et est lié dans le démon : un seul binaire.
 
-Statut : en développement actif, pas encore de version publiée. Voir [docs/STATUS.md](docs/STATUS.md).
+Statut : en développement actif. Dernière version : [v0.1.5](https://github.com/raucheacho/lorag/releases/latest). Voir [docs/STATUS.md](docs/STATUS.md).
 
 ## Installation
 
-Lorag est un seul binaire pour macOS et Linux (amd64, arm64) : le Studio et le moteur sont dedans. Il lui faut [Ollama](https://ollama.com) pour les embeddings. À partir de la première version publiée :
+Lorag est un seul binaire pour macOS et Linux (amd64, arm64) : le Studio et le moteur sont dedans. Il lui faut [Ollama](https://ollama.com) pour les embeddings.
 
 ```sh
 # macOS (et Linux) avec Homebrew : Lorag tourne en fond avec la session
