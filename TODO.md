@@ -10,8 +10,4 @@ Le REST, le MCP et le Studio n'ont aucune authentification : seule l'écoute sur
 
 À savoir pour un déploiement : les chemins indexés sont ceux du serveur, les originaux ne sont pas copiés mais leur texte extrait est stocké dans `~/.lorag/data` ; un fichier glissé dans le Studio est copié dans `data/imports/`.
 
-## Jeton `VECTIXDB_TOKEN`
-
-VectixDB est public, la CI n'en a plus besoin. Supprimer le secret dans les réglages du dépôt Lorag et révoquer le jeton sur GitHub. En local, `go env -u GOPRIVATE` si la variable avait été posée.
-
 Le reste des tâches ouvertes est dans [docs/STATUS.md](docs/STATUS.md#à-faire).
