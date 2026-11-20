@@ -46,7 +46,7 @@ Src: docs.github.com/…/rate-limits-for-the-rest-api
 - **`Problem:` or `Q:` line:** added when the match is by similarity rather than by signature, so the agent can judge whether it really is its problem or question.
 - **`Src:` line:** where an answer comes from; dropped first when the budget is short, so the answer is never cut for it.
 - **Size:** the answer fits the token budget (`budget_tokens`, 60 by default), and the fix is cut when needed. The format itself costs about 15 tokens around the fix.
-- **No match:** the answer is `No memory for this problem.` (8 tokens).
+- **No match:** the answer is `No memory for this problem.`, followed by a reminder to save the solution once it is solved and checked (about 25 tokens). The agent recalls when the problem arrives but tends to forget saving once it has the answer: the miss reminds it at the right moment.
 
 ## How problems are matched
 

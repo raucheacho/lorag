@@ -257,7 +257,7 @@ func TestMemoryWorkflow(t *testing.T) {
 	errA := "Error: listen EADDRINUSE: address already in use :::3000\n    at Server.setupListenHandle [as _listen2] (node:net:1817:16)"
 
 	text, _ := f.call("memory_recall", map[string]any{"error": errA})
-	if text != "No memory for this problem." {
+	if !strings.HasPrefix(text, memory.NoMemory) {
 		t.Fatalf("recall before save: %q", text)
 	}
 	text, isErr := f.call("memory_save", map[string]any{
@@ -284,7 +284,7 @@ func TestMemoryWorkflow(t *testing.T) {
 		t.Fatalf("feedback: %q", text)
 	}
 	// Other projects do not see it.
-	if text, _ = f.call("memory_recall", map[string]any{"error": errB, "project": "blog"}); text != "No memory for this problem." {
+	if text, _ = f.call("memory_recall", map[string]any{"error": errB, "project": "blog"}); !strings.HasPrefix(text, memory.NoMemory) {
 		t.Fatalf("leak to another project: %q", text)
 	}
 	if _, isErr := f.call("memory_feedback", map[string]any{"id": id}); !isErr {

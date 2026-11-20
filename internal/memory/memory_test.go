@@ -164,7 +164,7 @@ func TestRecallSimilarityAndMiss(t *testing.T) {
 		t.Fatalf("similar: %v %+v", err, rec)
 	}
 	rec, _ = s.Recall(RecallRequest{Query: "how to bake sourdough bread"})
-	if len(rec.Matches) != 0 || rec.Text != "No memory for this problem." {
+	if len(rec.Matches) != 0 || !strings.HasPrefix(rec.Text, NoMemory) {
 		t.Fatalf("unrelated recall: %+v", rec)
 	}
 	st, _ := s.Stats()
