@@ -307,7 +307,7 @@ func (w *Watcher) processEvents(ctx context.Context) {
 func (w *Watcher) processPendingEvent(ctx context.Context, event Event) {
 	switch event.Type {
 	case "create", "modify":
-		if w.isSupportedFile(event.Path) {
+		if w.isSupportedFile(event.Path) && !w.indexer.Excluded(event.Path) {
 			if _, err := w.indexer.IndexFile(ctx, event.Path); err != nil {
 				fmt.Printf("failed to index %s: %v\n", event.Path, err)
 			}

@@ -60,6 +60,7 @@ func NewRouter(handler *Handler) http.Handler {
 
 		r.Route("/documents", func(r chi.Router) {
 			r.Get("/", handler.ListDocuments)
+			r.Post("/delete", handler.DeleteDocuments)
 			r.Post("/reindex-media", handler.ReindexMedia)
 			r.Route("/{id}", func(r chi.Router) {
 				r.Get("/", handler.GetDocument)
@@ -68,6 +69,11 @@ func NewRouter(handler *Handler) http.Handler {
 				r.Get("/chunks", handler.GetDocumentChunks)
 				r.Get("/file", handler.DocumentFile)
 			})
+		})
+
+		r.Route("/exclusions", func(r chi.Router) {
+			r.Get("/", handler.ListExclusions)
+			r.Post("/restore", handler.RestoreExclusions)
 		})
 
 		r.Route("/watches", func(r chi.Router) {

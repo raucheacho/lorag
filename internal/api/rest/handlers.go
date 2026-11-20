@@ -245,6 +245,11 @@ func (h *Handler) IndexFile(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "path is required")
 		return
 	}
+	// Asking for one file by its path brings it back if the user removed it.
+	if err := h.Indexer.Include(req.Path); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	if req.Async {
 		task, err := h.Indexer.SubmitTask(context.Background(), req.Path)
 		if err != nil {
@@ -435,13 +440,73 @@ func (h *Handler) GetDocument(w http.ResponseWriter, r *http.Request) {
 }
 
 // DeleteDocument handles document deletion
+// DeleteDocument removes one document from Lorag; its file stays on disk.
+// ?exclude=1 also keeps the file out of later directory ingests and watches.
 func (h *Handler) DeleteDocument(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	if err := h.Indexer.DeleteDocument(r.Context(), id); err != nil {
-		respondError(w, http.StatusNotFound, err.Error())
+	exclude := r.URL.Query().Get("exclude") == "1" || r.URL.Query().Get("exclude") == "true"
+	if _, failed := h.Indexer.RemoveDocuments(r.Context(), []string{id}, exclude); failed[id] != "" {
+		respondError(w, http.StatusNotFound, failed[id])
 		return
 	}
 	respondJSON(w, http.StatusOK, map[string]string{"status": "deleted", "id": id})
+}
+
+// DeleteDocuments removes several documents at once; with exclude, their
+// files are kept out of later directory ingests and watches.
+func (h *Handler) DeleteDocuments(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		IDs     []string `json:"ids"`
+		Exclude bool     `json:"exclude"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.IDs) == 0 {
+		respondError(w, http.StatusBadRequest, "ids is required")
+		return
+	}
+	removed, failed := h.Indexer.RemoveDocuments(r.Context(), req.IDs, req.Exclude)
+	respondJSON(w, http.StatusOK, map[string]any{"deleted": removed, "failed": failed})
+}
+
+// ListExclusions returns the files the user removed, kept out of directory
+// ingests and watches.
+func (h *Handler) ListExclusions(w http.ResponseWriter, r *http.Request) {
+	list, err := h.Store.ListExcluded()
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"exclusions": list})
+}
+
+// RestoreExclusions lets removed files be indexed again and, with reindex,
+// queues those still on disk.
+func (h *Handler) RestoreExclusions(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Paths   []string `json:"paths"`
+		Reindex bool     `json:"reindex"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Paths) == 0 {
+		respondError(w, http.StatusBadRequest, "paths is required")
+		return
+	}
+	if err := h.Indexer.Include(req.Paths...); err != nil {
+		respondError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	queued, missing := 0, []string{}
+	if req.Reindex {
+		for _, p := range req.Paths {
+			if info, err := os.Stat(p); err != nil || info.IsDir() {
+				missing = append(missing, p)
+				continue
+			}
+			if _, err := h.Indexer.SubmitTask(context.Background(), p); err != nil {
+				go h.Indexer.IndexFile(context.Background(), p)
+			}
+			queued++
+		}
+	}
+	respondJSON(w, http.StatusOK, map[string]any{"restored": len(req.Paths), "queued": queued, "missing": missing})
 }
 
 // ReindexDocument handles document reindexing
