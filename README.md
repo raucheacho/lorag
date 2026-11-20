@@ -10,7 +10,7 @@
 - **Local.** Embeddings par Ollama, transcription par whisper.cpp, OCR par tesseract. Aucune donnée ne sort sans votre action.
 - **Fiable.** Le moteur de recherche, [VectixDB](https://github.com/raucheacho/vectixdb), est écrit en Zig, résiste aux plantages et est lié dans le démon : un seul binaire.
 
-Statut : en développement actif. Dernière version : [v0.1.5](https://github.com/raucheacho/lorag/releases/latest). Voir [docs/STATUS.md](docs/STATUS.md).
+Statut : en développement actif. Dernière version : [v0.1.6](https://github.com/raucheacho/lorag/releases/latest). Voir [docs/STATUS.md](docs/STATUS.md).
 
 ## Installation
 

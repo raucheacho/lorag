@@ -897,6 +897,15 @@ func major(v string) string {
 	return m
 }
 
+// NoMemory starts the answer to a recall that matches nothing.
+const NoMemory = "No memory for this problem."
+
+// noMemoryText is the whole answer to a miss. An agent recalls when the
+// problem arrives but forgets to save once it has solved it, so the miss
+// itself says what to do next. It names no tool: MCP, REST and CLI clients
+// all read it.
+const noMemoryText = NoMemory + " Once you have solved it and checked the result, save the solution so it is not solved again."
+
 // format renders matches compactly within budget tokens and returns how many
 // fit. The first match is always included, its fix cut if needed. The
 // header is the id, successes/failures and the last verification; the
@@ -907,7 +916,7 @@ func major(v string) string {
 //	Ctx: expo@52 react-native@0.76
 func format(ms []Match, budget int) (string, int) {
 	if len(ms) == 0 {
-		return "No memory for this problem.", 0
+		return noMemoryText, 0
 	}
 	var b strings.Builder
 	used := 0
