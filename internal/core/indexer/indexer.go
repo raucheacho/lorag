@@ -401,6 +401,11 @@ func (i *Indexer) IndexDirectory(ctx context.Context, dir string, recursive bool
 			result.Skipped++
 			return nil
 		}
+		// Files the user removed stay out of directory ingests and watches.
+		if i.Excluded(path) {
+			result.Skipped++
+			return nil
+		}
 
 		files = append(files, path)
 		return nil
@@ -496,6 +501,61 @@ func (i *Indexer) DeleteDocument(ctx context.Context, docID string) error {
 		return err
 	}
 	return i.store.DeleteDocument(docID)
+}
+
+// RemoveDocuments deletes documents from the store and the index; their
+// files stay on disk. With exclude, their files are also kept out of later
+// directory ingests and watches, so a document ingested by mistake does not
+// come back. It returns the removed ids and, for each id it could not
+// remove, why.
+func (i *Indexer) RemoveDocuments(ctx context.Context, ids []string, exclude bool) ([]string, map[string]string) {
+	removed := []string{}
+	failed := map[string]string{}
+	for _, id := range ids {
+		doc, err := i.store.GetDocument(id)
+		if err != nil {
+			failed[id] = err.Error()
+			continue
+		}
+		if err := i.DeleteDocument(ctx, id); err != nil {
+			failed[id] = err.Error()
+			continue
+		}
+		if !exclude {
+			removed = append(removed, id)
+			continue
+		}
+		if err := i.store.ExcludePaths(exclusionKey(doc.Path)); err != nil {
+			failed[id] = "removed, but not excluded: " + err.Error()
+			continue
+		}
+		removed = append(removed, id)
+	}
+	return removed, failed
+}
+
+// Excluded reports whether the user removed this file: directory ingests
+// and watches skip it.
+func (i *Indexer) Excluded(path string) bool {
+	return i.store.IsExcluded(exclusionKey(path))
+}
+
+// Include lets removed files be indexed again. Indexing a file by its own
+// path calls it: asking for one file is asking for it back.
+func (i *Indexer) Include(paths ...string) error {
+	keys := make([]string, len(paths))
+	for n, p := range paths {
+		keys[n] = exclusionKey(p)
+	}
+	return i.store.IncludePaths(keys...)
+}
+
+// exclusionKey is the absolute, clean form of a path.
+func exclusionKey(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
+	}
+	return filepath.Clean(path)
 }
 
 // ReindexDocument reindexes a document even if its file is unchanged.

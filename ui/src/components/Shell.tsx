@@ -20,6 +20,7 @@ import { Resource, useHotkey, useResource, useStored } from '../lib/hooks';
 import { useToast } from './toast';
 import { Tooltip } from './tooltip';
 import { cx, Dot, Kbd, modKey } from './ui';
+import logo from '../assets/logo.png';
 
 // The overview is polled once and shared: sidebar status, Overview page,
 // and every page that needs the MCP address or index state.
@@ -150,12 +151,7 @@ export function Shell({ children }: { children: ReactNode }) {
 }
 
 function Logo() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden className="text-accent">
-      <rect x="3" y="3" width="18" height="18" rx="5" fill="currentColor" opacity="0.18" />
-      <path d="M8 6.5v11h8" stroke="currentColor" strokeWidth="2.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  return <img src={logo} width={20} height={20} alt="" aria-hidden />;
 }
 
 function NavItem({ to, label, icon: Icon, end }: { to: string; label: string; icon: typeof Search; end?: boolean }) {

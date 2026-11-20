@@ -6,6 +6,8 @@ Agents keep redoing the same work:
 
 Lorag keeps what is already known and gives it back in a few tokens, before the agent searches.
 
+The memory is shared by every agent connected to the same Lorag: a fix Claude Code found is recalled by Codex or Cursor, a fact told to a voice assistant is known to the coding agent. Each entry records the agent that saved it (`origin`, the MCP client name), and feedback from any agent moves it up or retires it, so the experience of one improves all the others.
+
 Lorag is not only for code. A voice assistant, a support agent or a writing tool need the same thing: not to ask again what they were already told. An entry is one of three kinds:
 
 | Kind | What it holds | Example |

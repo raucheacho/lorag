@@ -105,9 +105,19 @@ Response:
 | GET | `/documents/{id}/chunks` | Chunks in order, without embeddings: `content`, `position`, `tokens`, `dim`, `indexed` (present in the search index), `page`, `line_start`, `line_end`, `start_ms`, `end_ms`, `section`, `start_byte`, `end_byte` |
 | GET | `/documents/{id}/file` | The original file, with range requests. Code and HTML are served as `text/plain` |
 | POST | `/documents/{id}/reindex` | Reindexes the file; returns the new document (its id changes) |
-| DELETE | `/documents/{id}` | Removes the document from the store and the index |
+| DELETE | `/documents/{id}?exclude=1` | Removes the document from the store and the index; the file stays on disk. With `exclude=1`, also excludes the file (below) |
+| POST | `/documents/delete` | `{ids, exclude}`: removes several documents at once. Returns `{deleted, failed}` (`failed`: id → reason) |
 
 To open a source at a chunk's position: `/documents/{id}/file#page=3` for a PDF, `#t=12.0,45.5` for audio and video.
+
+## Exclusions
+
+Deleting a document only removes it from Lorag: a directory ingest or a watched folder indexes its file again (at the next change, or when the daemon restarts). Excluding it keeps it out: directory ingests and watches skip the file. Ingesting the file by its own path (`/index/file`, the MCP `ingest` tool) brings it back.
+
+| Method | Path | |
+| --- | --- | --- |
+| GET | `/exclusions/` | `{exclusions: [{path, excluded_at}]}`, most recent first |
+| POST | `/exclusions/restore` | `{paths, reindex}`: lets the files be indexed again and, with `reindex`, queues those still on disk. Returns `{restored, queued, missing}` |
 
 ## Watched folders
 

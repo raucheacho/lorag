@@ -141,6 +141,11 @@ export interface ActivityQuery {
   hits: ActivityHit[] | null;
 }
 
+export interface ExcludedPath {
+  path: string;
+  excluded_at: string;
+}
+
 export interface Document {
   id: string;
   path: string;
@@ -427,7 +432,14 @@ export const api = {
     request<{ documents: Document[]; total: number; offset: number; limit: number }>('GET', v1(`/documents/${qs(p)}`)),
   document: (id: string) => request<Document>('GET', v1(`/documents/${id}`)),
   chunks: (id: string) => request<{ chunks: Chunk[]; total: number }>('GET', v1(`/documents/${id}/chunks`)),
-  deleteDocument: (id: string) => request<unknown>('DELETE', v1(`/documents/${id}`)),
+  deleteDocument: (id: string, exclude = false) => request<unknown>('DELETE', v1(`/documents/${id}${exclude ? '?exclude=1' : ''}`)),
+  // Removes documents from Lorag (files stay on disk); exclude also keeps
+  // their files out of later directory ingests and watches.
+  deleteDocuments: (ids: string[], exclude = false) =>
+    request<{ deleted: string[]; failed: Record<string, string> }>('POST', v1('/documents/delete'), { ids, exclude }),
+  exclusions: () => request<{ exclusions: ExcludedPath[] }>('GET', v1('/exclusions/')),
+  restoreExclusions: (paths: string[], reindex = true) =>
+    request<{ restored: number; queued: number; missing: string[] }>('POST', v1('/exclusions/restore'), { paths, reindex }),
   reindexDocument: (id: string) => request<Document>('POST', v1(`/documents/${id}/reindex`)),
 
   ingestion: (limit = 100) => request<Ingestion>('GET', v1(`/ingestion${qs({ limit })}`)),

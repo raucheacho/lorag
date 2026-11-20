@@ -59,7 +59,7 @@ func (s *BoltStore) Path() string { return s.path }
 // initBuckets creates all required buckets
 func (s *BoltStore) initBuckets() error {
 	return s.db.Update(func(tx *goBolt.Tx) error {
-		buckets := []string{documentsBucket, chunksBucket, settingsBucket, chunksByDocBucket, docsByPathBucket}
+		buckets := []string{documentsBucket, chunksBucket, settingsBucket, chunksByDocBucket, docsByPathBucket, excludedBucket}
 		for _, name := range buckets {
 			if _, err := tx.CreateBucketIfNotExists([]byte(name)); err != nil {
 				return fmt.Errorf("failed to create bucket %s: %w", name, err)

@@ -46,7 +46,13 @@ La liste des documents (filtre par nom, type, tri). Un clic ouvre le détail :
   - *Open original file* ouvre le fichier ;
   - pour un PDF, le lien ouvre la bonne page ;
   - pour un audio ou une vidéo, *Play* lit le passage.
-- **Actions** : réindexer, supprimer, chercher dans ce seul fichier.
+- **Actions** : réindexer, supprimer, exclure, chercher dans ce seul fichier.
+
+Les cases à cocher sélectionnent plusieurs documents, y compris sur plusieurs pages ; la case de l'en-tête sélectionne la page. La barre qui apparaît agit sur toute la sélection : *Reindex*, *Delete*, *Exclude*.
+
+- **Supprimer** retire le document de Lorag ; le fichier reste sur le disque. S'il est dans un dossier surveillé, il reviendra à sa prochaine modification ou au redémarrage.
+- **Exclure** retire le document et empêche son fichier d'être réindexé par un dossier surveillé ou l'ingestion d'un dossier. Pour un document ingéré par erreur dans un dossier surveillé.
+- **Excluded** (barre d'outils) liste les fichiers exclus ; *Restore* les réautorise et les réindexe. Ingérer un fichier exclu par son propre chemin le réautorise aussi.
 
 ### Playground
 

@@ -618,6 +618,10 @@ func (s *Server) index(ctx context.Context, args json.RawMessage) (string, error
 		return "", err
 	}
 	if !info.IsDir() {
+		// Asking for one file by its path brings it back if the user removed it.
+		if err := s.indexer.Include(p.Path); err != nil {
+			return "", err
+		}
 		doc, err := s.indexer.IndexFile(ctx, p.Path)
 		if err != nil {
 			return "", err
