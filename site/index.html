@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lorag</title>
-<meta name="description" content="Lorag, la mémoire locale des agents IA. Il indexe tes fichiers et garde ce que tes agents ont déjà trouvé ou appris. Tout reste sur ta machine.">
+<meta name="description" content="Lorag, la mémoire locale des agents IA, partagée entre tous tes agents. Il indexe tes fichiers et garde ce qu'ils ont déjà trouvé ou appris. Tout reste sur ta machine.">
 <meta name="color-scheme" content="dark">
 <link rel="icon" type="image/png" href="favicon.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -297,8 +297,8 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
         <span data-lang="en">Your agents forget.<br><span class="dim">Lorag remembers.</span></span>
       </h1>
       <p class="lede">
-        <span data-lang="fr">Un démon local qui indexe tes fichiers et garde ce que tes agents ont déjà trouvé ou appris. Ils le retrouvent en quelques tokens, par MCP, au lieu de chercher à nouveau.</span>
-        <span data-lang="en">A local daemon that indexes your files and keeps what your agents already found or learned. They get it back in a few tokens, over MCP, instead of searching again.</span>
+        <span data-lang="fr">Un démon local qui indexe tes fichiers et garde ce que tes agents ont déjà trouvé ou appris. Une seule mémoire pour tous : ce qu'un agent a résolu, les autres le retrouvent en quelques tokens, par MCP, au lieu de chercher à nouveau.</span>
+        <span data-lang="en">A local daemon that indexes your files and keeps what your agents already found or learned. One memory for all of them: what one agent solved, the others get back in a few tokens, over MCP, instead of searching again.</span>
       </p>
       <div class="install" data-tabs>
         <div class="tabs" role="tablist">
@@ -408,7 +408,7 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
       <div class="side">
         <p class="kicker">02 · <span data-lang="fr">mémoire</span><span data-lang="en">memory</span></p>
         <h2><span data-lang="fr">Rappeler, garder, noter.</span><span data-lang="en">Recall, keep, rate.</span></h2>
-        <p class="intro"><span data-lang="fr">Tes agents reçoivent ces règles à la connexion. Ce qu'ils apprennent sert à tous les autres.</span><span data-lang="en">Your agents get these rules when they connect. What one learns, the others reuse.</span></p>
+        <p class="intro"><span data-lang="fr">Une seule mémoire partagée par tous tes agents : ce que Claude Code a résolu hier, Codex ou Cursor le retrouve aujourd'hui, et un assistant vocal sait ce que tu as dit à ton éditeur. Chaque entrée garde l'agent qui l'a apprise. Tous reçoivent ces règles à la connexion.</span><span data-lang="en">One memory shared by all your agents: what Claude Code solved yesterday, Codex or Cursor gets back today, and a voice assistant knows what you told your editor. Every entry keeps the agent that learned it. They all get these rules when they connect.</span></p>
         <ol class="steps">
           <li><div><h3><span data-lang="fr">Rappeler d'abord</span><span data-lang="en">Recall first</span></h3><p><span data-lang="fr">Sur une erreur, avant le web, ou avant de répondre sur toi : <code>memory_recall</code>.</span><span data-lang="en">On an error, before the web, or before answering about you: <code>memory_recall</code>.</span></p></div></li>
           <li><div><h3><span data-lang="fr">Garder ce qui est vérifié</span><span data-lang="en">Keep what is verified</span></h3><p><span data-lang="fr">Un correctif, une réponse avec sa source, un fait sur toi ou tes proches : <code>memory_save</code>.</span><span data-lang="en">A fix, an answer with its source, a fact about you or people you know: <code>memory_save</code>.</span></p></div></li>
@@ -486,7 +486,7 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
   <section id="integrations" class="wrap">
     <p class="kicker">04 · <span data-lang="fr">intégrations</span><span data-lang="en">integrations</span></p>
     <h2><span data-lang="fr">Branche n'importe quel client MCP.</span><span data-lang="en">Plug in any MCP client.</span></h2>
-    <p class="intro"><span data-lang="fr">Lorag sert MCP en HTTP sur <code>localhost:8080/mcp</code>. Le Studio donne la configuration de chaque client et la teste.</span><span data-lang="en">Lorag serves MCP over HTTP on <code>localhost:8080/mcp</code>. The Studio gives each client's configuration and tests it.</span></p>
+    <p class="intro"><span data-lang="fr">Lorag sert MCP en HTTP sur <code>localhost:8080/mcp</code>. Branche autant d'agents que tu veux : ils partagent la même mémoire et le même index. Le Studio donne la configuration de chaque client et la teste.</span><span data-lang="en">Lorag serves MCP over HTTP on <code>localhost:8080/mcp</code>. Plug in as many agents as you like: they share the same memory and the same index. The Studio gives each client's configuration and tests it.</span></p>
     <div class="integ">
       <div class="box" data-tabs>
         <div class="tabs" role="tablist">

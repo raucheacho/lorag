@@ -7,6 +7,7 @@
 **La mémoire locale des agents IA.** Lorag indexe vos fichiers (documents, code, PDF, présentations, audio, vidéo) et garde ce que vos agents ont déjà trouvé ou appris : un correctif à une erreur, une réponse cherchée sur le web, ce que vous leur avez dit de vous. Un agent les retrouve en quelques tokens au lieu de chercher ou de redemander. Tout reste sur votre machine.
 
 - **Mémoire des agents.** Correctifs et réponses déjà trouvés, faits sur vous et vos proches (une personne, une préférence, un engagement), avec leur source et leur historique, rappelés en 20 à 60 tokens ([docs/MEMORY.md](docs/MEMORY.md)). Pour le code comme pour un assistant vocal comme Benom.
+- **Partagée entre agents.** Une seule mémoire pour tous vos agents : ce que Claude Code a résolu, Codex, Cursor ou un assistant vocal le retrouvent sans refaire le travail. Chaque entrée garde l'agent qui l'a apprise.
 - **Recherche hybride.** Le sens (embeddings) et les mots exacts (BM25) fusionnés. Les messages d'erreur sont cherchés mot pour mot.
 - **Positions exactes.** Chaque résultat renvoie à la page d'un PDF, aux lignes d'un fichier ou à la minute d'un audio ou d'une vidéo ([docs/MEDIA_INDEXING.md](docs/MEDIA_INDEXING.md)).
 - **MCP.** Claude Code, Cursor, VS Code, Codex et tout client MCP se branchent sur la même mémoire ([docs/MCP.md](docs/MCP.md)). Pour Claude Code, le plugin [lorag-claude-code](https://github.com/raucheacho/lorag-claude-code) ajoute le MCP, un hook et un skill en une installation.
