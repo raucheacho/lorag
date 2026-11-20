@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lorag/lorag/internal/memory"
 	"github.com/spf13/cobra"
 )
 
@@ -63,6 +62,11 @@ func recalledFixContext(fix string) string {
 		"check it applies before using it, then report the outcome with memory_feedback.\n\n" + fix
 }
 
+// noMemory starts the memory's answer to a recall that matches nothing. It
+// copies memory.NoMemory: loragctl is pure Go and must not import the memory
+// package, which links the search engine (cgo). A test keeps them equal.
+const noMemory = "No memory for this problem."
+
 // memoryCall is one call to a Lorag memory tool during a turn, in a form
 // that does not depend on the agent: adapters fill it from their transcript.
 type memoryCall struct {
@@ -90,7 +94,7 @@ func unsavedMiss(calls []memoryCall) bool {
 	for _, c := range calls {
 		switch c.Tool {
 		case "memory_recall":
-			if strings.HasPrefix(strings.TrimSpace(c.Result), memory.NoMemory) {
+			if strings.HasPrefix(strings.TrimSpace(c.Result), noMemory) {
 				pending = true
 			}
 		case "memory_save":
