@@ -1,4 +1,8 @@
-# Lorag
+<p align="center">
+  <img src="assets/lorag_icon.png" alt="Lorag" width="120">
+</p>
+
+<h1 align="center">Lorag</h1>
 
 **La mémoire locale des agents IA.** Lorag indexe vos fichiers (documents, code, PDF, présentations, audio, vidéo) et garde ce que vos agents ont déjà trouvé ou appris : un correctif à une erreur, une réponse cherchée sur le web, ce que vous leur avez dit de vous. Un agent les retrouve en quelques tokens au lieu de chercher ou de redemander. Tout reste sur votre machine.
 
@@ -10,7 +14,7 @@
 - **Local.** Embeddings par Ollama, transcription par whisper.cpp, OCR par tesseract. Aucune donnée ne sort sans votre action.
 - **Fiable.** Le moteur de recherche, [VectixDB](https://github.com/raucheacho/vectixdb), est écrit en Zig, résiste aux plantages et est lié dans le démon : un seul binaire.
 
-Statut : en développement actif. Dernière version : [v0.1.6](https://github.com/raucheacho/lorag/releases/latest). Voir [docs/STATUS.md](docs/STATUS.md).
+Statut : en développement actif. Dernière version : [v0.1.7](https://github.com/raucheacho/lorag/releases/latest). Voir [docs/STATUS.md](docs/STATUS.md).
 
 ## Installation
 

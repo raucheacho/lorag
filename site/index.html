@@ -6,7 +6,8 @@
 <title>Lorag</title>
 <meta name="description" content="Lorag, la mémoire locale des agents IA. Il indexe tes fichiers et garde ce que tes agents ont déjà trouvé ou appris. Tout reste sur ta machine.">
 <meta name="color-scheme" content="dark">
-<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -47,7 +48,7 @@ html[lang="fr"] [data-lang="fr"], html[lang="en"] [data-lang="en"] { display: re
 nav { position: sticky; top: 0; z-index: 10; background: rgba(9, 9, 10, 0.72); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); }
 nav .wrap { display: flex; align-items: center; gap: 28px; height: 60px; }
 .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 15px; }
-.brand svg { width: 24px; height: 24px; }
+.brand img { width: 26px; height: 26px; }
 .brand .ver { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--dim); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
 .brand .ver:empty { display: none; }
 .links { display: flex; gap: 22px; font-size: 14px; color: var(--muted); }
@@ -260,7 +261,6 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="logo" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5" fill="#2dd4bf"/><path d="M8 6.5v11h8" stroke="#042f2e" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   <symbol id="gh" viewBox="0 0 24 24"><path fill="currentColor" d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.41-2.69 5.39-5.26 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></symbol>
   <symbol id="cp" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></g></symbol>
   <symbol id="book" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V5a2 2 0 0 1 2-2h14v16H6.5A2.5 2.5 0 0 0 4 21.5Z"/><path d="M8 7h8"/></g></symbol>
@@ -268,7 +268,7 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
 
 <nav>
   <div class="wrap">
-    <a class="brand" href="#"><svg aria-hidden="true"><use href="#logo"/></svg>Lorag<span class="ver version"></span></a>
+    <a class="brand" href="#"><img src="logo.png" alt="" aria-hidden="true">Lorag<span class="ver version"></span></a>
     <div class="links">
       <a href="#pipeline"><span data-lang="fr">Fonctionnement</span><span data-lang="en">How it works</span></a>
       <a href="#memoire"><span data-lang="fr">Mémoire</span><span data-lang="en">Memory</span></a>
@@ -580,7 +580,7 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
   <div class="band">
     <div class="wrap">
       <div>
-        <svg class="logo" aria-hidden="true"><use href="#logo"/></svg>
+        <img class="logo" src="logo.png" alt="" aria-hidden="true">
         <h2><span data-lang="fr">Donne une mémoire à tes agents.</span><span data-lang="en">Give your agents a memory.</span><br><span class="dim"><span data-lang="fr">Libre et local.</span><span data-lang="en">Open and local.</span></span></h2>
       </div>
       <div class="install">
