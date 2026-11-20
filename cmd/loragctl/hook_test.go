@@ -8,7 +8,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/lorag/lorag/internal/memory"
 )
+
+func TestNoMemoryMatchesTheMemory(t *testing.T) {
+	if noMemory != memory.NoMemory {
+		t.Fatalf("noMemory = %q, memory.NoMemory = %q", noMemory, memory.NoMemory)
+	}
+}
 
 func TestClaudeCodeHook(t *testing.T) {
 	var got map[string]any
