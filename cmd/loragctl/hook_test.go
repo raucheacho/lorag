@@ -6,8 +6,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/lorag/lorag/internal/memory"
 )
@@ -62,9 +64,10 @@ func TestClaudeCodeHook(t *testing.T) {
 		}
 	}
 
-	apiBaseURL = "http://127.0.0.1:1/api/v1" // Lorag not running
-	if out := claudeCodeHook(strings.NewReader(event), ""); out != nil {
-		t.Errorf("server down: expected no output, got %v", out)
+	// Lorag not running: said, not silent (TestHookSaysOnceWhenLoragIsUnreachable).
+	apiBaseURL = "http://127.0.0.1:1/api/v1"
+	if out := claudeCodeHook(strings.NewReader(event), ""); out == nil {
+		t.Error("server down: expected an unreachable notice")
 	}
 }
 
@@ -144,5 +147,78 @@ func TestClaudeCodeStopHook(t *testing.T) {
 		if out := stop(path, false); out != nil {
 			t.Errorf("%s: expected no output, got %v", name, out)
 		}
+	}
+}
+
+// fakeMemory answers recalls with the given body, whatever was asked, and
+// records the last request.
+func fakeMemory(t *testing.T, status int, body string) *map[string]any {
+	t.Helper()
+	got := map[string]any{}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	old := apiBaseURL
+	apiBaseURL = srv.URL + "/api/v1"
+	t.Cleanup(func() { apiBaseURL = old; srv.Close() })
+	return &got
+}
+
+func TestHookKeepsOnlyConfidentMatches(t *testing.T) {
+	// 0.51: accepted by the memory thanks to shared words, below its 0.55
+	// threshold. A hook must not inject it.
+	fakeMemory(t, 200, `{"text":"[fix a] firebase","matches":[{"by":"similarity","similarity":0.51}],"thresholds":{"similarity":0.55}}`)
+	if out := claudeCodeHook(strings.NewReader(`{"error":"Exit code 128\nworkflow scope"}`), ""); out != nil {
+		t.Errorf("weak match injected: %v", out)
+	}
+
+	fakeMemory(t, 200, `{"text":"[fix b] scene lifecycle","matches":[{"by":"similarity","similarity":0.76}],"thresholds":{"similarity":0.55}}`)
+	if out := claudeCodeHook(strings.NewReader(`{"error":"Exit code 1\nNoSceneLifecycleAdoption"}`), ""); out == nil {
+		t.Error("confident match dropped")
+	}
+}
+
+func TestHookRecallsOnPrompt(t *testing.T) {
+	got := fakeMemory(t, 200, `{"text":"[fix c] scene lifecycle","matches":[{"by":"similarity","similarity":0.7}],"thresholds":{"similarity":0.55}}`)
+	event := `{"hook_event_name":"UserPromptSubmit","cwd":"/home/me/goul","prompt":"sur ios l'app quitte brutalement au lancement"}`
+	out := claudeCodeHook(strings.NewReader(event), "")
+	if out == nil {
+		t.Fatal("expected a recalled entry")
+	}
+	if (*got)["query"] != "sur ios l'app quitte brutalement au lancement" || (*got)["project"] != "goul" {
+		t.Errorf("recall request = %v", *got)
+	}
+	hso := out["hookSpecificOutput"].(map[string]any)
+	if hso["hookEventName"] != "UserPromptSubmit" || !strings.Contains(hso["additionalContext"].(string), "scene lifecycle") {
+		t.Errorf("output = %v", hso)
+	}
+
+	for _, prompt := range []string{"ok merge", "/code-review high"} {
+		ev, _ := json.Marshal(map[string]any{"hook_event_name": "UserPromptSubmit", "prompt": prompt})
+		if out := claudeCodeHook(strings.NewReader(string(ev)), ""); out != nil {
+			t.Errorf("%q: expected no recall, got %v", prompt, out)
+		}
+	}
+}
+
+func TestHookSaysOnceWhenLoragIsUnreachable(t *testing.T) {
+	// Another program on the port: the 404 that hid a port conflict.
+	fakeMemory(t, 404, `404 page not found`)
+	session := "test-" + strings.ReplaceAll(t.Name(), "/", "-") + "-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	t.Cleanup(func() { os.Remove(filepath.Join(os.TempDir(), "lorag-unreachable-"+session)) })
+	event := `{"hook_event_name":"PostToolUseFailure","error":"Exit code 1\nboom","session_id":"` + session + `"}`
+
+	out := claudeCodeHook(strings.NewReader(event), "")
+	if out == nil {
+		t.Fatal("expected an unreachable notice")
+	}
+	ctx := out["hookSpecificOutput"].(map[string]any)["additionalContext"].(string)
+	if !strings.Contains(ctx, "unreachable") || !strings.Contains(ctx, "HTTP 404") {
+		t.Errorf("notice = %q", ctx)
+	}
+	if out := claudeCodeHook(strings.NewReader(event), ""); out != nil {
+		t.Errorf("second notice in the same session: %v", out)
 	}
 }
