@@ -48,7 +48,7 @@ claude mcp add --transport http --scope user lorag http://localhost:7411/mcp
 
 `--scope user` makes Lorag available in every project; leave it out to add it to the current project only.
 
-The agent decides on its own when to call `memory_recall`. To recall on every failed command, add a `PostToolUseFailure` hook to `~/.claude/settings.json`:
+The agent decides on its own when to call `memory_recall`. To recall on every failed command and on every request, add these hooks to `~/.claude/settings.json` (the Claude Code plugin installs them):
 
 ```json
 {
@@ -59,6 +59,9 @@ The agent decides on its own when to call `memory_recall`. To recall on every fa
         "hooks": [{ "type": "command", "command": "loragctl hook claude-code", "timeout": 10 }]
       }
     ],
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "loragctl hook claude-code", "timeout": 10 }] }
+    ],
     "Stop": [
       { "hooks": [{ "type": "command", "command": "loragctl hook claude-code", "timeout": 10 }] }
     ]
@@ -66,7 +69,11 @@ The agent decides on its own when to call `memory_recall`. To recall on every fa
 }
 ```
 
-`loragctl hook claude-code` reads the event on stdin, sends the error to `/api/v1/memory/recall` with the working directory's name as `project`, and returns a match as `additionalContext`, so Claude reads the fix next to the failed command. It prints nothing and exits 0 when Lorag is not running, when the command failed without a message (`grep` finding nothing), when it was interrupted, or when nothing matches. A failure that matches nothing still counts as a miss in the memory statistics. `--project` overrides the project name.
+`loragctl hook claude-code` reads the event on stdin, sends the error to `/api/v1/memory/recall` with the working directory's name as `project`, and returns a match as `additionalContext`, so Claude reads the fix next to the failed command. It prints nothing and exits 0 when the command failed without a message (`grep` finding nothing), when it was interrupted, or when nothing matches with confidence. A hook recalls without being asked, so it keeps a match by signature or at the similarity threshold itself, never one let through below it because the words match too.
+
+On `UserPromptSubmit`, it recalls with the user's request as the query, under the same rule. Short requests (under 20 characters) and slash commands recall nothing. Many problems never show as a failed command.
+
+When Lorag does not answer, or another program answers on its port, it says so once per session: as `additionalContext`, so Claude tells the user, and on stderr. A silent hook let a port conflict pass for an empty memory. A failure that matches nothing still counts as a miss in the memory statistics. `--project` overrides the project name.
 
 On `Stop`, it reads the transcript of the turn. When a `memory_recall` found nothing and no `memory_save` followed, it blocks the end of the turn once and asks Claude to save the solution if it has a checked one, or to finish without mentioning it otherwise. It never asks twice in a row (`stop_hook_active`) and does nothing in any other turn. Agents recall when a problem arrives but forget to save once they have solved it; this is the moment the memory would otherwise lose the answer.
 

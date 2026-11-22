@@ -3,9 +3,11 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -21,6 +23,8 @@ type claudeHookInput struct {
 	Cwd            string `json:"cwd"`
 	TranscriptPath string `json:"transcript_path"`
 	StopHookActive bool   `json:"stop_hook_active"`
+	Prompt         string `json:"prompt"`
+	SessionID      string `json:"session_id"`
 }
 
 func hookClaudeCodeCmd() *cobra.Command {
@@ -33,12 +37,17 @@ func hookClaudeCodeCmd() *cobra.Command {
 PostToolUseFailure: recalls a fix for the error and returns it as additional
 context when the memory has one.
 
+UserPromptSubmit: recalls an entry about what the user asks ("the app quits
+on launch on iOS") and returns it as additional context when the memory has
+a confident one. Many problems never show as a failed command.
+
 Stop: when a memory recall in this turn found nothing and no memory_save
 followed, asks Claude once to save the solution if it has one. It never
 asks twice in a row (stop_hook_active).
 
-It never fails the tool call or the turn: when Lorag is not running, the
-error is unknown or nothing matches, it prints nothing and exits 0.
+It never fails the tool call or the turn. When nothing matches, it prints
+nothing. When Lorag does not answer, it says so once per session, to Claude
+and on stderr, instead of letting the memory look empty.
 
 Register it in ~/.claude/settings.json:
 
@@ -46,6 +55,9 @@ Register it in ~/.claude/settings.json:
     "hooks": {
       "PostToolUseFailure": [
         {"matcher": "Bash", "hooks": [{"type": "command", "command": "loragctl hook claude-code", "timeout": 10}]}
+      ],
+      "UserPromptSubmit": [
+        {"hooks": [{"type": "command", "command": "loragctl hook claude-code", "timeout": 10}]}
       ],
       "Stop": [
         {"hooks": [{"type": "command", "command": "loragctl hook claude-code", "timeout": 10}]}
@@ -78,20 +90,64 @@ func claudeCodeHook(stdin io.Reader, project string) map[string]any {
 	if project == "" && in.Cwd != "" {
 		project = filepath.Base(in.Cwd)
 	}
-	fix := recallFix(in.Error, project)
-	if fix == "" {
-		return nil
-	}
+
 	event := in.HookEventName
-	if event == "" {
-		event = "PostToolUseFailure"
+	var found string
+	var err error
+	if event == "UserPromptSubmit" {
+		prompt := strings.TrimSpace(in.Prompt)
+		// A command, or a word or two ("ok", "merge"), says nothing to recall.
+		if strings.HasPrefix(prompt, "/") || len([]rune(prompt)) < minPromptRunes {
+			return nil
+		}
+		found, err = recallFor(prompt, project)
+	} else {
+		if event == "" {
+			event = "PostToolUseFailure"
+		}
+		found, err = recallFix(in.Error, project)
+	}
+
+	var context string
+	switch {
+	case err != nil:
+		if !firstInSession(in.SessionID) {
+			return nil
+		}
+		fmt.Fprintln(os.Stderr, "lorag: "+err.Error())
+		context = unreachableContext(err)
+	case found == "":
+		return nil
+	case event == "UserPromptSubmit":
+		context = recalledPromptContext(found)
+	default:
+		context = recalledFixContext(found)
 	}
 	return map[string]any{
 		"hookSpecificOutput": map[string]any{
 			"hookEventName":     event,
-			"additionalContext": recalledFixContext(fix),
+			"additionalContext": context,
 		},
 	}
+}
+
+// minPromptRunes is the shortest request worth a recall.
+const minPromptRunes = 20
+
+// firstInSession reports whether this is the first "unreachable" notice of a
+// session, and records it. Without a session id, every time: a repeated
+// notice is better than a silent memory.
+func firstInSession(sessionID string) bool {
+	if sessionID == "" {
+		return true
+	}
+	mark := filepath.Join(os.TempDir(), "lorag-unreachable-"+filepath.Base(sessionID))
+	f, err := os.OpenFile(mark, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err != nil {
+		return false
+	}
+	f.Close()
+	return true
 }
 
 // claudeStop blocks the end of the turn once when it left an unsaved miss.
