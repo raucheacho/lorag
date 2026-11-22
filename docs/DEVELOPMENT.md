@@ -15,7 +15,7 @@ Read [ARCHITECTURE.md](ARCHITECTURE.md) first, and [STATUS.md](STATUS.md) for wh
 ```sh
 (cd ui && npm ci && npm run build)
 make build-server                # bin/lorag
-./bin/lorag server -d ./data     # Studio on http://localhost:8080
+./bin/lorag server -d ./data     # Studio on http://localhost:7411
 ```
 
 `go.mod` requires a released VectixDB binding (`v0.1.0`). Its per-platform modules (`bindings/go/lib/<platform>`) carry the prebuilt static libraries, so building needs no Zig and no VectixDB checkout. To upgrade: `go get github.com/raucheacho/vectixdb/bindings/go@v<version>`.
@@ -32,7 +32,7 @@ go work init . ../vectixdb/bindings/go ../vectixdb/bindings/go/lib/darwin_arm64
 | Command | |
 | --- | --- |
 | `make dev-server` | `go run ./cmd/lorag server` (needs `ui/dist`, even empty) |
-| `make dev-ui` | Vite on http://localhost:5173 with hot reload, proxying `/api` to :8080 |
+| `make dev-ui` | Vite on http://localhost:5173 with hot reload, proxying `/api` to :7411 |
 | `make build-server`, `make build-cli` | `bin/lorag`, `bin/loragctl` |
 | `make test` | `go test -v ./...` |
 | `go test -race ./...` | What CI runs |
@@ -45,7 +45,7 @@ go work init . ../vectixdb/bindings/go ../vectixdb/bindings/go/lib/darwin_arm64
 | Variable | Default | |
 | --- | --- | --- |
 | `LORAG_DATA_DIR` | `~/.lorag/data` | use a scratch directory to test; one server per directory |
-| `LORAG_HOST`, `LORAG_PORT` | `localhost`, `8080` | |
+| `LORAG_HOST`, `LORAG_PORT` | `localhost`, `7411` | |
 | `LORAG_EMBEDDING_PROVIDER`, `_MODEL`, `_URL`, `_DIM`, `_API_KEY` | from the settings | override the persisted settings at start |
 | `LORAG_MAX_CHUNKS` | from the settings (`max_chunks`, 0: no limit) | caps the index size; parallel workers reserve their chunks, so the cap holds |
 | `LORAG_MAX_QUEUE_SIZE` | 100 | |
@@ -69,7 +69,7 @@ Tests that need a binary (`pdftotext`) skip when it is missing.
 
 The unit tests use deterministic fake embedders. Before trusting a change to ranking or memory thresholds, check with Ollama and real files:
 
-1. Start a server on a scratch directory: `./bin/lorag server -p 18080 -d /tmp/lorag-check`.
+1. Start a server on a scratch directory: `./bin/lorag server -p 17411 -d /tmp/lorag-check`.
 2. In Settings, turn on transcription for audio and video, then restart.
 3. Index a folder with a multi-page PDF, Markdown, code, an audio file and a video.
 4. Search through MCP (`curl` examples in [MCP.md](MCP.md)) and check that each result points at the right page, lines or minute.

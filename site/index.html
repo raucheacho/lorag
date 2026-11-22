@@ -324,7 +324,7 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
     </div>
 
     <div class="term" aria-label="Terminal">
-      <div class="tbar"><span class="dots"><i></i><i></i><i></i></span><span>~/code/shop</span><span class="mcp">localhost:8080</span></div>
+      <div class="tbar"><span class="dots"><i></i><i></i><i></i></span><span>~/code/shop</span><span class="mcp">localhost:7411</span></div>
 <pre><span class="p">$</span> npm run dev
 <span class="e">Error: listen EADDRINUSE: address already in use :::3000</span>
 
@@ -375,7 +375,7 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
         <div class="chips"><span class="chip on">Ollama · bge-m3</span><span class="chip on">BM25</span></div>
       </div>
       <div class="stage">
-        <div class="n">mcp · localhost:8080</div>
+        <div class="n">mcp · localhost:7411</div>
         <h3><span data-lang="fr">Tes agents</span><span data-lang="en">Your agents</span></h3>
         <p><span data-lang="fr">Tout client MCP en HTTP, et le Studio pour voir ce qu'ils demandent.</span><span data-lang="en">Any MCP client over HTTP, and the Studio to see what they ask.</span></p>
         <div class="chips"><span class="chip">Claude Code</span><span class="chip">Cursor</span><span class="chip">VS Code</span><span class="chip">Codex</span></div>
@@ -486,7 +486,7 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
   <section id="integrations" class="wrap">
     <p class="kicker">04 · <span data-lang="fr">intégrations</span><span data-lang="en">integrations</span></p>
     <h2><span data-lang="fr">Branche n'importe quel client MCP.</span><span data-lang="en">Plug in any MCP client.</span></h2>
-    <p class="intro"><span data-lang="fr">Lorag sert MCP en HTTP sur <code>localhost:8080/mcp</code>. Branche autant d'agents que tu veux : ils partagent la même mémoire et le même index. Le Studio donne la configuration de chaque client et la teste.</span><span data-lang="en">Lorag serves MCP over HTTP on <code>localhost:8080/mcp</code>. Plug in as many agents as you like: they share the same memory and the same index. The Studio gives each client's configuration and tests it.</span></p>
+    <p class="intro"><span data-lang="fr">Lorag sert MCP en HTTP sur <code>localhost:7411/mcp</code>. Branche autant d'agents que tu veux : ils partagent la même mémoire et le même index. Le Studio donne la configuration de chaque client et la teste.</span><span data-lang="en">Lorag serves MCP over HTTP on <code>localhost:7411/mcp</code>. Plug in as many agents as you like: they share the same memory and the same index. The Studio gives each client's configuration and tests it.</span></p>
     <div class="integ">
       <div class="box" data-tabs>
         <div class="tabs" role="tablist">
@@ -504,7 +504,7 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
           <div class="where">~/.cursor/mcp.json</div>
 <pre>{
   "mcpServers": {
-    "lorag": { "url": "http://localhost:8080/mcp" }
+    "lorag": { "url": "http://localhost:7411/mcp" }
   }
 }</pre>
         </div>
@@ -512,7 +512,7 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
           <div class="where">.vscode/mcp.json</div>
 <pre>{
   "servers": {
-    "lorag": { "type": "http", "url": "http://localhost:8080/mcp" }
+    "lorag": { "type": "http", "url": "http://localhost:7411/mcp" }
   }
 }</pre>
         </div>
@@ -520,7 +520,7 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
           <div class="where"><span data-lang="fr">Tout client qui accepte un serveur HTTP (Streamable HTTP)</span><span data-lang="en">Any client that accepts an HTTP (Streamable HTTP) server</span></div>
 <pre>{
   "mcpServers": {
-    "lorag": { "type": "http", "url": "http://localhost:8080/mcp" }
+    "lorag": { "type": "http", "url": "http://localhost:7411/mcp" }
   }
 }</pre>
         </div>
@@ -563,7 +563,7 @@ footer .fl { display: flex; gap: 20px; flex-wrap: wrap; }
         <li>
           <span class="dot">3</span>
           <h3><span data-lang="fr">Indexe et branche</span><span data-lang="en">Index and connect</span></h3>
-          <p><span data-lang="fr">Le Studio s'ouvre sur localhost:8080 : choisis un dossier, puis copie la configuration de ton client dans Connect.</span><span data-lang="en">The Studio opens on localhost:8080: pick a folder, then copy your client's config from Connect.</span></p>
+          <p><span data-lang="fr">Le Studio s'ouvre sur localhost:7411 : choisis un dossier, puis copie la configuration de ton client dans Connect.</span><span data-lang="en">The Studio opens on localhost:7411: pick a folder, then copy your client's config from Connect.</span></p>
           <div class="cmd"><code>lorag open</code><button class="copy" type="button" aria-label="Copy"><svg><use href="#cp"/></svg></button></div>
         </li>
       </ol>

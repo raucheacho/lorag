@@ -5,8 +5,8 @@ Lorag serves MCP over the Streamable HTTP transport, so agents can search the in
 ## Endpoint
 
 ```
-POST   http://localhost:8080/mcp     JSON-RPC 2.0 request, JSON response
-DELETE http://localhost:8080/mcp     ends the session named by Mcp-Session-Id
+POST   http://localhost:7411/mcp     JSON-RPC 2.0 request, JSON response
+DELETE http://localhost:7411/mcp     ends the session named by Mcp-Session-Id
 ```
 
 - Protocol revisions: `2025-06-18`, `2025-03-26`, `2024-11-05`. The server answers `initialize` with the client's revision when it supports it, the newest one otherwise.
@@ -24,12 +24,12 @@ Clients that support HTTP servers take the URL directly:
 ```json
 {
   "mcpServers": {
-    "lorag": { "type": "http", "url": "http://localhost:8080/mcp" }
+    "lorag": { "type": "http", "url": "http://localhost:7411/mcp" }
   }
 }
 ```
 
-Clients limited to stdio servers can go through a bridge such as `npx mcp-remote http://localhost:8080/mcp`.
+Clients limited to stdio servers can go through a bridge such as `npx mcp-remote http://localhost:7411/mcp`.
 
 ### Claude Code
 
@@ -43,7 +43,7 @@ The [lorag-claude-code](https://github.com/raucheacho/lorag-claude-code) plugin 
 By hand, add the server:
 
 ```sh
-claude mcp add --transport http --scope user lorag http://localhost:8080/mcp
+claude mcp add --transport http --scope user lorag http://localhost:7411/mcp
 ```
 
 `--scope user` makes Lorag available in every project; leave it out to add it to the current project only.
@@ -148,7 +148,7 @@ Documents, chunks and memory counts, and the state of the search index, as JSON.
 ## Example
 
 ```sh
-curl -s localhost:8080/mcp -H 'Content-Type: application/json' -d '{
+curl -s localhost:7411/mcp -H 'Content-Type: application/json' -d '{
   "jsonrpc": "2.0", "id": 1, "method": "tools/call",
   "params": {"name": "search", "arguments": {"query": "ImagePullBackOff", "mode": "keyword"}}
 }'

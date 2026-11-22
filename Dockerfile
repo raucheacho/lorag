@@ -26,12 +26,12 @@ COPY --from=builder /out/lorag /out/loragctl /usr/local/bin/
 
 ENV LORAG_DATA_DIR=/data \
     LORAG_HOST=0.0.0.0 \
-    LORAG_PORT=8080
-EXPOSE 8080
+    LORAG_PORT=7411
+EXPOSE 7411
 VOLUME ["/data"]
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://localhost:7411/health || exit 1
 
 ENTRYPOINT ["lorag"]
 CMD ["server"]

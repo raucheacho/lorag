@@ -28,10 +28,10 @@ make build
 ./bin/lorag server
 ```
 
-Ouvrez http://localhost:8080 (ou `lorag open`).
+Ouvrez http://localhost:7411 (ou `lorag open`).
 
 - Les données vont dans `~/.lorag/data`. Pour un autre dossier : `./bin/lorag server -d ~/lorag-data`.
-- Pour un autre port : `-p 8090`.
+- Pour un autre port : `-p 7412`.
 
 ## 4. Indexer un dossier
 
@@ -51,7 +51,7 @@ Dans **Playground**, tapez une question puis `⌘↵`. Chaque résultat indique 
 
 ## 6. Connecter un agent
 
-Dans **Connect**, choisissez votre client (client HTTP générique, Claude Code, Cursor, VS Code, passerelle stdio), copiez la configuration et cliquez sur **Test**. L'URL est `http://localhost:8080/mcp`.
+Dans **Connect**, choisissez votre client (client HTTP générique, Claude Code, Cursor, VS Code, passerelle stdio), copiez la configuration et cliquez sur **Test**. L'URL est `http://localhost:7411/mcp`.
 
 L'agent reçoit sept outils, dont :
 - `memory_recall` : chercher dans ce qui est déjà connu avant de chercher ailleurs ;
@@ -67,7 +67,7 @@ L'agent reçoit sept outils, dont :
 
 | Symptôme | Cause et solution |
 | --- | --- |
-| `address already in use` au lancement | Le port 8080 est pris : `./bin/lorag server -p 8090` |
+| `address already in use` au lancement | Le port 7411 est pris : `./bin/lorag server -p 7412` |
 | *Embedder unavailable* dans la barre latérale | Ollama ne tourne pas, ou le modèle manque : `ollama serve`, `ollama pull bge-m3` |
 | `database locked by another process` | Un autre `lorag server` utilise le même dossier de données |
 | Un PDF n'a pas de numéro de page | `pdftotext` n'est pas installé |

@@ -15,7 +15,7 @@ Installation : [QUICKSTART.md](QUICKSTART.md).
 
 ## Le Studio
 
-Ouvrez http://localhost:8080, ou lancez `lorag open` si vous avez oublié l'adresse.
+Ouvrez http://localhost:7411, ou lancez `lorag open` si vous avez oublié l'adresse.
 
 - **Raccourcis :** `⌘K` (ou `Ctrl+K`) ouvre la palette de commandes, qui sert à changer de page, lancer une recherche ou une action ; `/` place le curseur dans le champ de recherche de la page.
 - **Thème :** le sélecteur est en bas de la barre latérale (système, clair, sombre).
@@ -142,13 +142,13 @@ Une barre en bas de page signale les changements non enregistrés, et prévient 
 
 ## Connecter vos agents
 
-Le serveur MCP est sur `http://localhost:8080/mcp` (Streamable HTTP). La page Connect donne la configuration de chaque client, par exemple :
+Le serveur MCP est sur `http://localhost:7411/mcp` (Streamable HTTP). La page Connect donne la configuration de chaque client, par exemple :
 
 ```json
-{ "mcpServers": { "lorag": { "type": "http", "url": "http://localhost:8080/mcp" } } }
+{ "mcpServers": { "lorag": { "type": "http", "url": "http://localhost:7411/mcp" } } }
 ```
 
-Pour un client qui ne sait lancer que des programmes locaux (stdio), passez par la passerelle `npx -y mcp-remote http://localhost:8080/mcp`.
+Pour un client qui ne sait lancer que des programmes locaux (stdio), passez par la passerelle `npx -y mcp-remote http://localhost:7411/mcp`.
 
 Les outils et leur usage sont décrits dans [docs/MCP.md](docs/MCP.md). À la connexion, l'agent reçoit aussi ses consignes :
 - chercher dans la mémoire avant de chercher sur le web ;
@@ -198,7 +198,7 @@ Les versions précédentes rangeaient les données dans `./data`, relatif au dos
 | Symptôme | Que faire |
 | --- | --- |
 | Le serveur ne démarre pas : `database locked by another process` | Un autre `lorag server` utilise ce dossier de données ; arrêtez-le |
-| Port déjà utilisé | `./bin/lorag server -p 8090` |
+| Port déjà utilisé | `./bin/lorag server -p 7412` |
 | *Embedder unavailable* | Lancez Ollama et installez le modèle configuré ; Settings → *Test embedder* |
 | *out of sync* sur Overview | L'index est en reconstruction, ou des chunks manquent : Settings → Rebuild index |
 | Un fichier échoue | Ingestion → Failed donne la raison (outil manquant, transcription désactivée, fichier illisible) |

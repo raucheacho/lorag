@@ -21,7 +21,7 @@ var (
 	Commit    = "unknown"
 
 	// API client
-	apiBaseURL = "http://localhost:8080/api/v1"
+	apiBaseURL = "http://localhost:7411/api/v1"
 )
 
 func main() {
@@ -42,7 +42,7 @@ from the command line.`,
 				host = "localhost"
 			}
 			if port == "" {
-				port = "8080"
+				port = "7411"
 			}
 			
 			apiBaseURL = fmt.Sprintf("http://%s:%s/api/v1", host, port)

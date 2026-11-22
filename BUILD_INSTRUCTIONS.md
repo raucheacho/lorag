@@ -42,8 +42,8 @@ Le dossier `ui/dist` doit exister au moment de compiler le serveur : le Studio y
 ## Développement
 
 ```sh
-make dev-server     # serveur sur :8080
-make dev-ui         # Studio sur :5173 avec rechargement à chaud, /api relayé vers :8080
+make dev-server     # serveur sur :7411
+make dev-ui         # Studio sur :5173 avec rechargement à chaud, /api relayé vers :7411
 go test -race ./...
 ```
 
@@ -58,7 +58,7 @@ make docker-build
 # ou
 docker build -t lorag .
 
-docker run -p 8080:8080 -v "$PWD/data:/data" \
+docker run -p 7411:7411 -v "$PWD/data:/data" \
   -e LORAG_EMBEDDING_URL=http://host.docker.internal:11434 lorag
 ```
 

@@ -42,12 +42,12 @@ chmod +x basic-usage.sh
 
 ```bash
 # Index a file
-curl -X POST http://localhost:8080/api/v1/index/file \
+curl -X POST http://localhost:7411/api/v1/index/file \
     -H "Content-Type: application/json" \
     -d '{"path": "/path/to/file.pdf"}'
 
 # Index a directory recursively
-curl -X POST http://localhost:8080/api/v1/index/directory \
+curl -X POST http://localhost:7411/api/v1/index/directory \
     -H "Content-Type: application/json" \
     -d '{"path": "/path/to/documents", "recursive": true}'
 ```
@@ -56,12 +56,12 @@ curl -X POST http://localhost:8080/api/v1/index/directory \
 
 ```bash
 # Basic search
-curl -X POST http://localhost:8080/api/v1/search \
+curl -X POST http://localhost:7411/api/v1/search \
     -H "Content-Type: application/json" \
     -d '{"query": "machine learning", "top_k": 5}'
 
 # Search with minimum score
-curl -X POST http://localhost:8080/api/v1/search \
+curl -X POST http://localhost:7411/api/v1/search \
     -H "Content-Type: application/json" \
     -d '{"query": "AI", "top_k": 10, "min_score": 0.7}'
 ```
@@ -70,28 +70,28 @@ curl -X POST http://localhost:8080/api/v1/search \
 
 ```bash
 # List documents
-curl http://localhost:8080/api/v1/documents
+curl http://localhost:7411/api/v1/documents
 
 # Get specific document
-curl http://localhost:8080/api/v1/documents/DOC_ID
+curl http://localhost:7411/api/v1/documents/DOC_ID
 
 # Delete document
-curl -X DELETE http://localhost:8080/api/v1/documents/DOC_ID
+curl -X DELETE http://localhost:7411/api/v1/documents/DOC_ID
 ```
 
 ### Watch Management
 
 ```bash
 # List watches
-curl http://localhost:8080/api/v1/watches
+curl http://localhost:7411/api/v1/watches
 
 # Add watch
-curl -X POST http://localhost:8080/api/v1/watches \
+curl -X POST http://localhost:7411/api/v1/watches \
     -H "Content-Type: application/json" \
     -d '{"path": "/path/to/watch", "recursive": true}'
 
 # Remove watch
-curl -X DELETE http://localhost:8080/api/v1/watches/WATCH_ID
+curl -X DELETE http://localhost:7411/api/v1/watches/WATCH_ID
 ```
 
 ## More Examples

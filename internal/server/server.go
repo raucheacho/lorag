@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -195,17 +196,26 @@ func (s *Server) Start() error {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	errc := make(chan error, 1)
-	go func() {
-		addr := s.config.GetAddress()
-		fmt.Printf("Lorag %s (core %s)\n", s.version, s.engine.Stats().CoreVersion)
-		fmt.Printf("  Studio  http://%s\n", addr)
-		fmt.Printf("  REST    http://%s/api/v1\n", addr)
-		fmt.Printf("  MCP     http://%s/mcp\n", addr)
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			errc <- err
-		}
-	}()
+	listeners, err := listen(s.config.ServerHost, s.config.ServerPort)
+	if err != nil {
+		s.Shutdown(context.Background())
+		return err
+	}
+
+	addr := s.config.GetAddress()
+	fmt.Printf("Lorag %s (core %s)\n", s.version, s.engine.Stats().CoreVersion)
+	fmt.Printf("  Studio  http://%s\n", addr)
+	fmt.Printf("  REST    http://%s/api/v1\n", addr)
+	fmt.Printf("  MCP     http://%s/mcp\n", addr)
+
+	errc := make(chan error, len(listeners))
+	for _, l := range listeners {
+		go func(l net.Listener) {
+			if err := s.httpServer.Serve(l); err != nil && err != http.ErrServerClosed {
+				errc <- err
+			}
+		}(l)
+	}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)

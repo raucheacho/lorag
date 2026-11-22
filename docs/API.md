@@ -1,6 +1,6 @@
 # REST API
 
-Base URL: `http://localhost:8080/api/v1`. JSON in and out. Errors are `{"error": "message"}` with a 4xx or 5xx status.
+Base URL: `http://localhost:7411/api/v1`. JSON in and out. Errors are `{"error": "message"}` with a 4xx or 5xx status.
 
 There is no authentication: the server listens on `localhost` by default and must not be exposed. CORS accepts `localhost` and `127.0.0.1` origins.
 

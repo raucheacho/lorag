@@ -133,7 +133,7 @@ Fixes and answers for agents; the full description is in [MEMORY.md](MEMORY.md).
 - **Studio.**
   - A single-page app in `ui/`, built to `ui/dist` and embedded.
   - The server serves `index.html` for unknown paths (client-side routes).
-  - In development, Vite on port 5173 proxies `/api` to port 8080.
+  - In development, Vite on port 5173 proxies `/api` to port 7411.
 
 ## Concurrency
 

@@ -10,7 +10,7 @@ import requests
 import json
 import sys
 
-MCP_URL = "http://localhost:8080/mcp"
+MCP_URL = "http://localhost:7411/mcp"
 
 
 def mcp_request(method: str, params: dict = None, request_id: int = 1) -> dict:
