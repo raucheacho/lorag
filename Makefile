@@ -89,7 +89,7 @@ docker-build:
 
 # Docker run
 docker-run:
-	docker run -p 8080:8080 -v lorag-data:/data lorag:$(VERSION)
+	docker run -p 7411:7411 -v lorag-data:/data lorag:$(VERSION)
 
 # Release archives in dist/ (scripts/dist.sh): the host platform by default,
 # e.g. make dist PLATFORMS="darwin_arm64 darwin_amd64 linux_amd64 linux_arm64"

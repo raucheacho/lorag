@@ -13,7 +13,7 @@ import (
 // Settings); the LORAG_EMBEDDING_* variables only override them when set.
 type Config struct {
 	ServerHost string `env:"LORAG_HOST" envDefault:"localhost"`
-	ServerPort int    `env:"LORAG_PORT" envDefault:"8080"`
+	ServerPort int    `env:"LORAG_PORT" envDefault:"7411"`
 	DataDir    string `env:"LORAG_DATA_DIR"`
 
 	EmbeddingProvider string `env:"LORAG_EMBEDDING_PROVIDER"`

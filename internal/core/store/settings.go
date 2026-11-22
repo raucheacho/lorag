@@ -142,7 +142,7 @@ type AppSettings struct {
 func DefaultSettings() *AppSettings {
 	return &AppSettings{
 		Host:                 "localhost",
-		Port:                 8080,
+		Port:                 7411,
 		EmbeddingProvider:    "ollama",
 		EmbeddingModel:       "bge-m3", // multilingual (French, Arabic…); see docs/MEMORY.md
 		EmbeddingURL:         "http://localhost:11434",

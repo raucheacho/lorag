@@ -71,7 +71,7 @@ class Lorag < Formula
       Lorag needs Ollama for embeddings (https://ollama.com):
         ollama pull bge-m3
 
-      Data is stored in ~/.lorag/data. The Studio is on http://localhost:8080:
+      Data is stored in ~/.lorag/data. The Studio is on http://localhost:7411:
         lorag open
     TEXT
   end

@@ -32,7 +32,7 @@ curl -fsSL https://raw.githubusercontent.com/raucheacho/lorag/main/scripts/insta
 ollama pull bge-m3
 ```
 
-Studio sur http://localhost:8080 (`lorag open` l'ouvre dans le navigateur), données dans `~/.lorag/data`.
+Studio sur http://localhost:7411 (`lorag open` l'ouvre dans le navigateur), données dans `~/.lorag/data`.
 
 ## Installation depuis les sources
 
@@ -46,14 +46,14 @@ git clone https://github.com/raucheacho/lorag
 cd lorag
 ollama pull bge-m3   # modèle d'embedding multilingue (1,2 Go)
 make build            # Studio, bin/lorag et bin/loragctl
-./bin/lorag server    # Studio sur http://localhost:8080
+./bin/lorag server    # Studio sur http://localhost:7411
 ```
 
 Avec Homebrew, les outils pour les PDF, l'audio, la vidéo et les images sont installés avec Lorag ; sur Linux : [docs/MEDIA_INDEXING.md](docs/MEDIA_INDEXING.md). Docker et compilation détaillée : [BUILD_INSTRUCTIONS.md](BUILD_INSTRUCTIONS.md).
 
 ## Démarrage
 
-1. Ouvrez http://localhost:8080. La page **Overview** vérifie le modèle d'embedding et propose d'indexer un premier dossier.
+1. Ouvrez http://localhost:7411. La page **Overview** vérifie le modèle d'embedding et propose d'indexer un premier dossier.
 2. **Ingestion** : indiquez un dossier ou glissez des fichiers. Cochez *Keep watching* pour réindexer les fichiers modifiés.
 3. **Connect** : copiez la configuration MCP de votre client (Claude Code, Cursor, VS Code, client HTTP) et testez la connexion.
 4. Travaillez avec votre agent. **Agent logs** montre ses recherches et ses rappels, **Memory** ce qu'il a appris.
@@ -90,11 +90,11 @@ loragctl status
 
 ## API
 
-- **MCP :** `POST http://localhost:8080/mcp`. Outils : `memory_recall`, `memory_save`, `memory_feedback`, `search`, `get_document`, `ingest`, `get_stats` ([docs/MCP.md](docs/MCP.md)).
-- **REST :** `http://localhost:8080/api/v1` ([docs/API.md](docs/API.md)).
+- **MCP :** `POST http://localhost:7411/mcp`. Outils : `memory_recall`, `memory_save`, `memory_feedback`, `search`, `get_document`, `ingest`, `get_stats` ([docs/MCP.md](docs/MCP.md)).
+- **REST :** `http://localhost:7411/api/v1` ([docs/API.md](docs/API.md)).
 
 ```sh
-curl -s localhost:8080/api/v1/search -H 'Content-Type: application/json' \
+curl -s localhost:7411/api/v1/search -H 'Content-Type: application/json' \
   -d '{"query": "procédure de rollback", "top_k": 5}'
 ```
 
