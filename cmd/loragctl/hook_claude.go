@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -110,6 +111,10 @@ func claudeCodeHook(stdin io.Reader, project string) map[string]any {
 
 	var context string
 	switch {
+	case err != nil && !errors.As(err, new(errUnreachable)):
+		// Lorag is up: one failed recall is not worth the agent's attention.
+		fmt.Fprintln(os.Stderr, "lorag: "+err.Error())
+		return nil
 	case err != nil:
 		if !firstInSession(in.SessionID) {
 			return nil

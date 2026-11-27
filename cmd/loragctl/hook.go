@@ -37,6 +37,25 @@ func (e errUnreachable) Error() string {
 	return "Lorag is unreachable at " + apiBaseURL + " (" + e.detail + ")"
 }
 
+// errRecall is the memory API answering with an error of its own: Lorag is
+// up, this one recall failed (an embedder refusing the text, say). Telling
+// the user to start a server that is running sent them looking for nothing.
+type errRecall struct{ detail string }
+
+func (e errRecall) Error() string { return "Lorag recall failed: " + e.detail }
+
+// maxQueryRunes caps what a hook sends as a query. A pasted log of a few
+// thousand lines is not a question, and past the embedder's context it
+// failed the whole recall.
+const maxQueryRunes = 2000
+
+func clip(s string, n int) string {
+	if r := []rune(s); len(r) > n {
+		return string(r[:n])
+	}
+	return s
+}
+
 // recallFix asks the memory for a fix to a failed command's error. It returns
 // "" when the command failed without a message (grep finding nothing) or
 // nothing matches with confidence, and errUnreachable when Lorag does not
@@ -52,7 +71,7 @@ func recallFix(errText, project string) (string, error) {
 // recallFor asks the memory about what the user just asked, for the entry
 // that may already answer it.
 func recallFor(prompt, project string) (string, error) {
-	return recall(map[string]any{"query": prompt, "project": project, "k": 1})
+	return recall(map[string]any{"query": clip(prompt, maxQueryRunes), "project": project, "k": 1})
 }
 
 // recall runs one memory recall for a hook and keeps only confident matches.
@@ -73,6 +92,14 @@ func recall(req map[string]any) (string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		// The memory API answers its errors in JSON; anything else on its
+		// port is another program.
+		var apiErr struct {
+			Error string `json:"error"`
+		}
+		if json.NewDecoder(resp.Body).Decode(&apiErr) == nil && apiErr.Error != "" {
+			return "", errRecall{detail: "HTTP " + strconv.Itoa(resp.StatusCode) + ": " + apiErr.Error}
+		}
 		return "", errUnreachable{detail: "HTTP " + strconv.Itoa(resp.StatusCode)}
 	}
 	var rec struct {
