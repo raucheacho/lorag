@@ -78,8 +78,29 @@ type ollamaResponse struct {
 	Embedding []float32 `json:"embedding"`
 }
 
-// Embed generates embedding for a single text
+// minEmbedRunes is where shortening a refused text stops.
+const minEmbedRunes = 256
+
+// Embed generates embedding for a single text.
+//
+// Ollama refuses a text longer than the model's context with a 500. The text
+// is then halved until it fits: its beginning still says what it is about,
+// and an error kept a pasted log from being recalled at all.
 func (o *OllamaProvider) Embed(text string) ([]float32, error) {
+	for {
+		vec, status, err := o.embedOnce(text)
+		if err == nil {
+			return vec, nil
+		}
+		runes := []rune(text)
+		if status != http.StatusInternalServerError || len(runes) <= minEmbedRunes {
+			return nil, err
+		}
+		text = string(runes[:len(runes)/2])
+	}
+}
+
+func (o *OllamaProvider) embedOnce(text string) ([]float32, int, error) {
 	url := fmt.Sprintf("%s/api/embeddings", o.config.URL)
 	
 	reqBody := ollamaRequest{
@@ -89,25 +110,25 @@ func (o *OllamaProvider) Embed(text string) ([]float32, error) {
 	
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
+		return nil, 0, fmt.Errorf("failed to marshal request: %w", err)
 	}
 	
 	resp, err := o.client.Post(url, "application/json", bytes.NewBuffer(jsonBody))
 	if err != nil {
-		return nil, fmt.Errorf("failed to call ollama: %w", err)
+		return nil, 0, fmt.Errorf("failed to call ollama: %w", err)
 	}
 	defer resp.Body.Close()
 	
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("ollama returned status %d", resp.StatusCode)
+		return nil, resp.StatusCode, fmt.Errorf("ollama returned status %d", resp.StatusCode)
 	}
 	
 	var result ollamaResponse
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+		return nil, resp.StatusCode, fmt.Errorf("failed to decode response: %w", err)
 	}
 	
-	return result.Embedding, nil
+	return result.Embedding, resp.StatusCode, nil
 }
 
 // EmbedBatch generates embeddings for multiple texts

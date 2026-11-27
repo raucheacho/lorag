@@ -222,3 +222,20 @@ func TestHookSaysOnceWhenLoragIsUnreachable(t *testing.T) {
 		t.Errorf("second notice in the same session: %v", out)
 	}
 }
+
+func TestHookStaysQuietWhenARecallFails(t *testing.T) {
+	// Lorag is up and answers in JSON: the embedder refused this text. Not a
+	// reason to tell the user to start a server that runs.
+	got := fakeMemory(t, 400, `{"error":"embed query: ollama returned status 500"}`)
+	session := "test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	t.Cleanup(func() { os.Remove(filepath.Join(os.TempDir(), "lorag-unreachable-"+session)) })
+	long := strings.Repeat("Failed to update prerender cache for /uwsgi.ini ", 200)
+	ev, _ := json.Marshal(map[string]any{"hook_event_name": "UserPromptSubmit", "prompt": long, "session_id": session})
+
+	if out := claudeCodeHook(strings.NewReader(string(ev)), ""); out != nil {
+		t.Errorf("notice for a failed recall: %v", out)
+	}
+	if n := len([]rune((*got)["query"].(string))); n != maxQueryRunes {
+		t.Errorf("query sent with %d runes, want %d", n, maxQueryRunes)
+	}
+}
